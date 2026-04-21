@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { config } from "./config.js";
+import { config, normalizeSiteOrigin } from "./config.js";
 import { plaidRouter } from "./routes/plaid.js";
 import { dataRouter } from "./routes/data.js";
 import { aiRouter } from "./routes/ai.js";
@@ -11,7 +11,7 @@ import { profileRouter } from "./routes/profile.js";
 export function createApp() {
   const app = express();
 
-  const staticOrigins = [config.frontendUrl, "http://127.0.0.1:5173", "http://localhost:5173"];
+  const staticOrigins = [...new Set(config.frontendUrls)];
   const devLocalOrigin = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/;
 
   app.use(
@@ -21,11 +21,13 @@ export function createApp() {
           callback(null, true);
           return;
         }
-        if (config.nodeEnv === "development" && devLocalOrigin.test(origin)) {
+        const o = normalizeSiteOrigin(origin);
+        if (config.nodeEnv === "development" && devLocalOrigin.test(o)) {
           callback(null, true);
           return;
         }
-        callback(null, staticOrigins.includes(origin));
+        const allowed = staticOrigins.some((u) => u === o);
+        callback(null, allowed);
       },
       credentials: true,
     })

@@ -75,8 +75,8 @@ export default function Login() {
         {!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY ? (
           <p className="text-sm text-on-surface bg-surface-container-low border border-outline-variant/30 rounded-lg p-3 mb-4 font-body">
             Missing <code className="text-xs">VITE_SUPABASE_URL</code> or{" "}
-            <code className="text-xs">VITE_SUPABASE_ANON_KEY</code> in{" "}
-            <code className="text-xs">frontend/.env</code>. Auth cannot work until these are set (restart{" "}
+            <code className="text-xs">VITE_SUPABASE_ANON_KEY</code> in Vite env (<code className="text-xs">frontend/.env</code>{" "}
+            for local or your hosting env vars in production). Auth cannot work until these are set (restart{" "}
             <code className="text-xs">npm run dev</code> after saving).
           </p>
         ) : null}

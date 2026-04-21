@@ -1,4 +1,15 @@
-const base = import.meta.env.VITE_API_URL || "http://localhost:3001";
+/**
+ * Prefer API URL injected into `index.html` at build time so a stale PWA cache cannot
+ * keep an old `import.meta.env` bundle pointing at localhost.
+ */
+export function getApiBase(): string {
+  if (typeof window !== "undefined") {
+    const w = window.__FINPULSE_API_BASE__;
+    if (typeof w === "string" && /^https?:\/\//.test(w)) return w.replace(/\/+$/, "");
+  }
+  const raw = import.meta.env.VITE_API_URL || "http://localhost:3001";
+  return raw.replace(/\/+$/, "");
+}
 
 export type FinpulseScope = "me" | "household";
 
@@ -30,7 +41,7 @@ export async function api<T = unknown>(
   if (apiScope === "household") {
     headers.set("X-Finpulse-Scope", "household");
   }
-  const r = await fetch(`${base}${path}`, { ...opts, headers });
+  const r = await fetch(`${getApiBase()}${path}`, { ...opts, headers });
   const text = await r.text();
   if (!r.ok) {
     let message = text || r.statusText;

@@ -1,0 +1,61 @@
+services:
+  - type: web
+    name: finpulse-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_DB_SCHEMA
+        value: finpulse
+      - key: PLAID_CLIENT_ID
+        sync: false
+      - key: PLAID_SECRET
+        sync: false
+      - key: PLAID_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: FRONTEND_URLS
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true
+      - key: ENABLE_REWARDS_CATALOG_FALLBACK
+        value: "false"
+
+  - type: web
+    name: finpulse-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_API_URL
+        sync: false
+
+  - type: cron
+    name: finpulse-sync-cron
+    runtime: node
+    schedule: "*/30 * * * *"
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: >
+      node -e "fetch(process.env.API_URL + '/jobs/sync-transactions',{method:'POST',headers:{'x-cron-secret':process.env.CRON_SECRET||''}}).then(r=>{if(!r.ok)throw new Error('sync failed '+r.status);console.log('sync ok')}).catch(e=>{console.error(e);process.exit(1)})"
+    envVars:
+      - key: API_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false

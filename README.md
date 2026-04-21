@@ -31,6 +31,11 @@ Frontend (Vite) — prefix `VITE_`:
 
 Optional: `CRON_SECRET` (header `x-cron-secret` for `POST /jobs/sync-transactions`), `FINPULSE_API_KEY`, `FRONTEND_URL` (CORS).
 
+### Local-only convenience overrides
+
+You can create `.env.local` (gitignored) to override values locally without changing `.env`.
+For example, copy `.env.local.example` and set local convenience flags there.
+
 ## Database
 
 App tables live in the **`finpulse`** schema (not `public`).
@@ -97,6 +102,7 @@ docker run --env-file .env -p 3001:3001 finpulse-api
 ## Render
 
 See [RENDER.md](RENDER.md) for suggested service settings and environment variables.
+For production-ready setup (web + API + scheduled sync + security baseline), see [PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md).
 
 ## GitHub
 

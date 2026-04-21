@@ -1,5 +1,6 @@
 import { getDb } from "../db/supabase.js";
 import { getHouseholdIdForUser } from "../household/householdService.js";
+import { config } from "../../config.js";
 
 function effectiveBudgetTitles(
   txCats: string[] | null,
@@ -578,6 +579,7 @@ const REWARDS_CATALOG: {
 ];
 
 function inferCardProfile(cardName: string | null | undefined) {
+  if (!config.enableRewardsCatalogFallback) return null;
   const name = String(cardName ?? "");
   for (const item of REWARDS_CATALOG) {
     if (item.pattern.test(name)) return item;

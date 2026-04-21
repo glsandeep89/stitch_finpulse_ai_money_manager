@@ -9,6 +9,8 @@ import {
   syncTransactionsForUser,
   getIdentityForUser,
   getInvestmentsForUser,
+  listPlaidItemsForUser,
+  unlinkPlaidItemForUser,
 } from "../services/plaid/plaidService.js";
 import { getDb } from "../services/db/supabase.js";
 
@@ -92,6 +94,34 @@ plaidRouter.get("/investments", async (req, res) => {
   try {
     const userId = req.userId!;
     const out = await getInvestmentsForUser(userId);
+    res.json(out);
+  } catch (e: unknown) {
+    const err = e as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
+plaidRouter.get("/items", async (req, res) => {
+  try {
+    const userId = req.userId!;
+    const items = await listPlaidItemsForUser(userId);
+    res.json({ items });
+  } catch (e: unknown) {
+    const err = e as Error;
+    res.status(400).json({ error: err.message });
+  }
+});
+
+plaidRouter.post("/unlink-item", async (req, res) => {
+  try {
+    const body = z
+      .object({
+        plaidItemId: z.string().uuid(),
+        deleteHistory: z.boolean().default(false),
+      })
+      .parse(req.body ?? {});
+    const userId = req.userId!;
+    const out = await unlinkPlaidItemForUser(userId, body.plaidItemId, body.deleteHistory);
     res.json(out);
   } catch (e: unknown) {
     const err = e as Error;

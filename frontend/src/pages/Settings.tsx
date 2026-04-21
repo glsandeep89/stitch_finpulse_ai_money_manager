@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../lib/api";
+import { api, getApiBase } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
-
-const apiBase = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 const ADVANCED_STORAGE_KEY = "finpulse_show_advanced_settings";
 
@@ -28,11 +26,26 @@ export default function Settings() {
   const [ok, setOk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showAdvancedNav, setShowAdvancedNav] = useState(readShowAdvancedDefault);
+  const [plaidItems, setPlaidItems] = useState<
+    {
+      id: string;
+      item_id: string;
+      created_at: string | null;
+      updated_at: string | null;
+      accounts: { name: string | null; mask: string | null }[];
+    }[]
+  >([]);
+  const [unlinkTarget, setUnlinkTarget] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
+  const [unlinkDeleteHistory, setUnlinkDeleteHistory] = useState(false);
+  const [unlinkBusy, setUnlinkBusy] = useState(false);
 
   const load = useCallback(async () => {
     setErr(null);
     try {
-      const h = await fetch(`${apiBase}/health`);
+      const h = await fetch(`${getApiBase()}/health`);
       setHealth(await h.json());
     } catch {
       setHealth(null);
@@ -49,8 +62,21 @@ export default function Settings() {
       ]);
       setFeatures(feat);
       setProfileName(prof.profile?.display_name ?? "");
+      const linked = await api<{
+        items: {
+          id: string;
+          item_id: string;
+          created_at: string | null;
+          updated_at: string | null;
+          accounts: { name: string | null; mask: string | null }[];
+        }[];
+      }>("/plaid/items", {
+        accessToken: session.access_token,
+      }).catch(() => ({ items: [] }));
+      setPlaidItems(linked.items ?? []);
     } catch {
       setFeatures(null);
+      setPlaidItems([]);
     }
   }, [session?.access_token]);
 
@@ -114,6 +140,35 @@ export default function Settings() {
     }
   };
 
+  const unlinkSelectedItem = async () => {
+    if (!session?.access_token || !unlinkTarget) return;
+    setErr(null);
+    setOk(null);
+    setUnlinkBusy(true);
+    try {
+      await api("/plaid/unlink-item", {
+        method: "POST",
+        accessToken: session.access_token,
+        body: JSON.stringify({
+          plaidItemId: unlinkTarget.id,
+          deleteHistory: unlinkDeleteHistory,
+        }),
+      });
+      setOk(
+        unlinkDeleteHistory
+          ? "Connection unlinked and imported history deleted."
+          : "Connection unlinked. Historical data was kept."
+      );
+      setUnlinkTarget(null);
+      setUnlinkDeleteHistory(false);
+      await load();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to unlink item");
+    } finally {
+      setUnlinkBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-10 pb-12 max-w-xl">
       <div>
@@ -153,6 +208,48 @@ export default function Settings() {
             <span className="text-on-surface">{user?.email ? `signed in as ${user.email}` : "—"}</span>
           </li>
         </ul>
+      </section>
+
+      <section className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/10 shadow-ambient">
+        <h2 className="font-headline text-lg font-semibold text-on-surface mb-4">Linked bank connections</h2>
+        {plaidItems.length === 0 ? (
+          <p className="text-sm text-on-surface-variant font-body">No Plaid connections linked.</p>
+        ) : (
+          <div className="space-y-3">
+            {plaidItems.map((item) => (
+              <div key={item.id} className="rounded-lg border border-outline-variant/20 p-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-on-surface">
+                      Item {item.item_id.slice(0, 10)}...
+                    </p>
+                    <p className="text-xs text-on-surface-variant mt-1">
+                      {item.accounts.length} account{item.accounts.length === 1 ? "" : "s"} linked
+                    </p>
+                    <p className="text-xs text-on-surface-variant mt-1">
+                      {item.accounts
+                        .slice(0, 3)
+                        .map((a) => `${a.name ?? "Account"}${a.mask ? ` •${a.mask}` : ""}`)
+                        .join(", ")}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-error/10 text-error hover:bg-error/15"
+                    onClick={() =>
+                      setUnlinkTarget({
+                        id: item.id,
+                        label: `${item.accounts[0]?.name ?? "connection"} (${item.item_id.slice(0, 8)}...)`,
+                      })
+                    }
+                  >
+                    Unlink
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/10 shadow-ambient">
@@ -245,6 +342,47 @@ export default function Settings() {
           <p className="text-xs text-on-surface-variant">Dev build: advanced link is always shown.</p>
         ) : null}
       </div>
+
+      {unlinkTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <div className="w-full max-w-md rounded-xl bg-surface-container-lowest border border-outline-variant/20 p-5 shadow-ambient">
+            <h3 className="font-headline text-lg font-semibold text-on-surface">Unlink connection?</h3>
+            <p className="text-sm text-on-surface-variant mt-2">
+              This will stop future syncs for <span className="font-medium text-on-surface">{unlinkTarget.label}</span>.
+            </p>
+            <label className="mt-4 flex items-start gap-3 text-sm text-on-surface">
+              <input
+                type="checkbox"
+                checked={unlinkDeleteHistory}
+                onChange={(e) => setUnlinkDeleteHistory(e.target.checked)}
+                className="mt-1"
+              />
+              <span>Also delete imported transactions/subscriptions/refunds tied to this connection.</span>
+            </label>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-2 rounded-lg text-sm border border-outline-variant/30"
+                onClick={() => {
+                  setUnlinkTarget(null);
+                  setUnlinkDeleteHistory(false);
+                }}
+                disabled={unlinkBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-3 py-2 rounded-lg text-sm bg-error text-on-error disabled:opacity-60"
+                onClick={() => void unlinkSelectedItem()}
+                disabled={unlinkBusy}
+              >
+                {unlinkBusy ? "Unlinking..." : "Confirm unlink"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

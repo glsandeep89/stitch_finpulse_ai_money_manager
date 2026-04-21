@@ -259,13 +259,21 @@ export default function Overview() {
               Total Net Worth
             </h2>
             <div className="font-headline text-on-primary text-5xl md:text-6xl font-bold mb-4">{fmt(total)}</div>
-            <div className="flex items-center gap-2 text-tertiary-fixed bg-tertiary-container px-3 py-1 rounded-full text-sm font-medium w-fit font-body">
-              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
-                arrow_upward
-              </span>
-              <span>Live</span>
-              <span className="text-on-tertiary-fixed-variant ml-1 text-xs">Linked accounts</span>
-            </div>
+            {err ? (
+              <div className="flex items-center gap-2 text-error bg-error/10 px-3 py-1 rounded-full text-sm font-medium w-fit font-body border border-error/25">
+                <span className="material-symbols-outlined text-sm">cloud_off</span>
+                <span>Balances unavailable</span>
+                <span className="text-on-surface-variant ml-1 text-xs font-normal">Fix API connection</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-tertiary-fixed bg-tertiary-container px-3 py-1 rounded-full text-sm font-medium w-fit font-body">
+                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  arrow_upward
+                </span>
+                <span>Live</span>
+                <span className="text-on-tertiary-fixed-variant ml-1 text-xs">Linked accounts</span>
+              </div>
+            )}
           </div>
           <div className="flex gap-4">
             <div className="bg-surface-container-low/10 backdrop-blur-md rounded-xl p-4 min-w-[140px] border border-white/10">

@@ -304,3 +304,112 @@ export async function getInvestmentsForUser(userId: string) {
     throw e;
   }
 }
+
+export async function listPlaidItemsForUser(userId: string) {
+  const sb = getDb();
+  const { data: items, error } = await sb
+    .from("plaid_items")
+    .select("id,item_id,created_at,updated_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+
+  const ids = (items ?? []).map((i) => i.id as string);
+  if (ids.length === 0) return [];
+
+  const { data: accounts, error: accErr } = await sb
+    .from("linked_accounts")
+    .select("plaid_item_id,name,mask")
+    .eq("user_id", userId)
+    .in("plaid_item_id", ids);
+  if (accErr) throw accErr;
+
+  const grouped = new Map<string, { name: string | null; mask: string | null }[]>();
+  for (const row of accounts ?? []) {
+    const k = row.plaid_item_id as string;
+    if (!grouped.has(k)) grouped.set(k, []);
+    grouped.get(k)!.push({
+      name: (row.name as string | null) ?? null,
+      mask: (row.mask as string | null) ?? null,
+    });
+  }
+
+  return (items ?? []).map((item) => ({
+    id: item.id,
+    item_id: item.item_id,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    accounts: grouped.get(item.id as string) ?? [],
+  }));
+}
+
+export async function unlinkPlaidItemForUser(
+  userId: string,
+  plaidItemId: string,
+  deleteHistory: boolean
+) {
+  const sb = getDb();
+  const { data: item, error } = await sb
+    .from("plaid_items")
+    .select("id, access_token")
+    .eq("id", plaidItemId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!item) throw new Error("Linked item not found.");
+
+  const { data: accounts, error: accErr } = await sb
+    .from("linked_accounts")
+    .select("id, plaid_account_id")
+    .eq("user_id", userId)
+    .eq("plaid_item_id", plaidItemId);
+  if (accErr) throw accErr;
+  const linkedAccountIds = (accounts ?? []).map((a) => a.id as string);
+  const plaidAccountIds = (accounts ?? []).map((a) => a.plaid_account_id as string);
+
+  if (deleteHistory && linkedAccountIds.length > 0) {
+    const { error: txErr } = await sb
+      .from("transactions")
+      .delete()
+      .eq("user_id", userId)
+      .in("linked_account_id", linkedAccountIds);
+    if (txErr) throw txErr;
+
+    if (plaidAccountIds.length > 0) {
+      const { error: refundErr } = await sb
+        .from("refund_events")
+        .delete()
+        .eq("user_id", userId)
+        .in("plaid_account_id", plaidAccountIds);
+      const refundMsg = String((refundErr as { message?: string } | null)?.message ?? "");
+      if (refundErr && !refundMsg.includes("Could not find the table")) throw refundErr;
+
+      const { error: rewardsErr } = await sb
+        .from("credit_card_rewards_profiles")
+        .delete()
+        .eq("user_id", userId)
+        .in("plaid_account_id", plaidAccountIds);
+      const rewardsMsg = String((rewardsErr as { message?: string } | null)?.message ?? "");
+      if (rewardsErr && !rewardsMsg.includes("Could not find the table")) throw rewardsErr;
+    }
+
+    // Recurring subscriptions are derived from transaction history; reset to regenerate from remaining items.
+    const { error: subsErr } = await sb.from("subscriptions").delete().eq("user_id", userId);
+    if (subsErr) throw subsErr;
+  }
+
+  const { error: delErr } = await sb
+    .from("plaid_items")
+    .delete()
+    .eq("id", plaidItemId)
+    .eq("user_id", userId);
+  if (delErr) throw delErr;
+
+  try {
+    await plaidClient.itemRemove({ access_token: item.access_token as string });
+  } catch {
+    // Ignore Plaid-side revoke failures after local unlink succeeds.
+  }
+
+  return { ok: true, deletedHistory: deleteHistory };
+}

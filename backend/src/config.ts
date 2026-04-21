@@ -3,11 +3,18 @@ import path from "path";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 dotenv.config({ path: path.resolve(process.cwd(), "../.env") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), override: true });
+dotenv.config({ path: path.resolve(process.cwd(), "../.env.local"), override: true });
 
 export function requireEnv(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`Missing required env: ${name}`);
   return v;
+}
+
+/** Strip trailing slashes so CORS matches browser Origin (no trailing slash). */
+export function normalizeSiteOrigin(raw: string): string {
+  return raw.trim().replace(/\/+$/, "");
 }
 
 export const config = {
@@ -24,4 +31,15 @@ export const config = {
   cronSecret: process.env.CRON_SECRET,
   finpulseApiKey: process.env.FINPULSE_API_KEY,
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
+  frontendUrls: String(
+    process.env.FRONTEND_URLS ||
+      process.env.FRONTEND_URL ||
+      "http://localhost:5173,http://127.0.0.1:5173"
+  )
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map(normalizeSiteOrigin),
+  /** When true, uses local reward catalog fallback for card enrichment. Keep false for live-only behavior. */
+  enableRewardsCatalogFallback: String(process.env.ENABLE_REWARDS_CATALOG_FALLBACK || "false").toLowerCase() === "true",
 };
