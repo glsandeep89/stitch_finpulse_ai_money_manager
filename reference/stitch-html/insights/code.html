@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FinPulse - Insights</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#131b2e",
+                        "outline": "#76777d",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "surface-container-low": "#eff4ff",
+                        "tertiary-fixed": "#6ffbbe",
+                        "secondary-fixed": "#d5e3fd",
+                        "inverse-surface": "#213145",
+                        "surface": "#f8f9ff",
+                        "tertiary-container": "#002113",
+                        "on-background": "#0b1c30",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "on-error-container": "#93000a",
+                        "surface-bright": "#f8f9ff",
+                        "on-tertiary-fixed": "#002113",
+                        "surface-container": "#e5eeff",
+                        "surface-container-high": "#dce9ff",
+                        "primary-fixed-dim": "#bec6e0",
+                        "on-tertiary-container": "#009668",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#0d1c2f",
+                        "surface-container-highest": "#d3e4fe",
+                        "secondary": "#515f74",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "tertiary": "#000000",
+                        "error": "#ba1a1a",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-primary-fixed-variant": "#3f465c",
+                        "secondary-fixed-dim": "#b9c7e0",
+                        "on-secondary-container": "#57657b",
+                        "on-secondary-fixed-variant": "#3a485c",
+                        "inverse-primary": "#bec6e0",
+                        "on-primary": "#ffffff",
+                        "on-surface-variant": "#45464d",
+                        "error-container": "#ffdad6",
+                        "primary": "#000000",
+                        "on-surface": "#0b1c30",
+                        "primary-fixed": "#dae2fd",
+                        "background": "#f8f9ff",
+                        "on-primary-container": "#7c839b",
+                        "secondary-container": "#d5e3fd",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#c6c6cd",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-tint": "#565e74",
+                        "on-primary-fixed": "#131b2e",
+                        "surface-dim": "#cbdbf5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {},
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8f9ff; color: #0b1c30; }
+        h1, h2, h3, h4, h5, h6, .font-headline { font-family: 'Manrope', sans-serif; }
+        .glass-panel { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(16px); }
+        .gradient-text { background: linear-gradient(135deg, #000000, #131b2e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .growth-gradient { background: linear-gradient(135deg, #6ffbbe, #4edea3); }
+        .premium-shadow { box-shadow: 0 20px 40px rgba(11, 28, 48, 0.06); }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface antialiased min-h-screen flex flex-col pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#f8f9ff]/80 dark:bg-[#0b1c30]/80 backdrop-blur-md shadow-[0_20px_40px_rgba(11,28,48,0.06)] no-border tonal-shift bg-[#eff4ff] dark:bg-[#131b2e]">
+<div class="flex justify-between items-center px-6 h-16 w-full">
+<div class="flex items-center gap-3">
+<img alt="User profile photo" class="w-8 h-8 rounded-full object-cover" data-alt="Close up portrait of a young professional with short dark hair smiling gently against a light background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDWFEwv6uvIzj-nIFQ4Sn_e3_aFVgZTMVBDnLWbEcbXnGa222SgNehC-6hfzfsAffAkysCLU2lU-DJtpMVZ_CMq39cyVtbXZTJX2CdXM4MU3UJlHVnmcWarMbXlriywDzfNnQcWWzmwG6oH9PKgBbfeCevfSKQ79JDqBK6xYHaHtRr5BhOXAI_AI4XH4NBmq0yRYAKfpoYdzaYsFBWcX3TcgWLn4N2kAVzn6P8EPKcngBvMraZEpMxwJqMd7JjZIcYSWBuBGhXO7w"/>
+<span class="text-xl font-manrope font-extrabold text-[#000000] dark:text-[#ffffff] tracking-tight">FinPulse</span>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[#000000] dark:text-[#ffffff]">notifications</span>
+</button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 mt-20 px-4 md:px-8 max-w-7xl mx-auto w-full">
+<!-- Header Section -->
+<div class="mb-10 pt-4">
+<h1 class="text-display-md font-headline font-extrabold text-primary mb-2 gradient-text">Intelligence</h1>
+<p class="text-body-lg text-on-surface-variant max-w-2xl">AI-driven analysis of your financial vectors. Identifying anomalies and forecasting your 90-day trajectory.</p>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6 mb-12">
+<!-- AI Insights (Anomalies) - Span 8 -->
+<div class="md:col-span-8 bg-surface-container-lowest rounded-xl premium-shadow p-6 flex flex-col relative overflow-hidden">
+<div class="absolute top-0 right-0 w-64 h-64 bg-tertiary-fixed opacity-5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+<div class="flex justify-between items-start mb-6 z-10">
+<div>
+<h2 class="text-title-lg font-headline font-bold text-primary mb-1">Vector Analysis</h2>
+<p class="text-label-md text-on-surface-variant">Real-time pattern recognition</p>
+</div>
+<span class="material-symbols-outlined text-on-tertiary-container bg-surface-container-high p-2 rounded-full">troubleshoot</span>
+</div>
+<div class="space-y-4 z-10 flex-1">
+<!-- Anomaly Item -->
+<div class="bg-surface-container-low rounded-lg p-4 flex gap-4 items-start group hover:bg-surface-container transition-colors">
+<div class="mt-1">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">restaurant</span>
+</div>
+<div class="flex-1">
+<h3 class="text-body-md font-semibold text-primary">Dining Exceeds Baseline</h3>
+<p class="text-body-sm text-on-surface-variant mt-1">Food delivery spending is up 42% compared to your 6-month average. Expected velocity indicates budget breach by Friday.</p>
+</div>
+<div class="text-right">
+<span class="text-label-md font-semibold text-primary">-$184.20</span>
+<span class="block text-[10px] text-secondary mt-1">Anomaly</span>
+</div>
+</div>
+<!-- Trend Item -->
+<div class="bg-surface-container-low rounded-lg p-4 flex gap-4 items-start group hover:bg-surface-container transition-colors">
+<div class="mt-1">
+<span class="material-symbols-outlined text-on-tertiary-container" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+</div>
+<div class="flex-1">
+<h3 class="text-body-md font-semibold text-primary">Utility Optimization</h3>
+<p class="text-body-sm text-on-surface-variant mt-1">Recent adjustments to HVAC schedules correlate with a 15% reduction in projected energy costs this billing cycle.</p>
+</div>
+<div class="text-right">
+<span class="text-label-md font-semibold text-on-tertiary-container">+$45.00</span>
+<span class="block text-[10px] text-secondary mt-1">Trend</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Predictive Forecasting - Span 4 -->
+<div class="md:col-span-4 bg-primary-container rounded-xl premium-shadow p-6 flex flex-col text-on-primary">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h2 class="text-title-lg font-headline font-bold text-on-primary mb-1">Horizon Forecast</h2>
+<p class="text-label-md text-on-primary-container">90-day liquidity projection</p>
+</div>
+<span class="material-symbols-outlined text-tertiary-fixed">radar</span>
+</div>
+<div class="flex-1 flex flex-col justify-center items-center py-4 relative">
+<!-- Abstract Chart Representation -->
+<div class="w-full h-32 relative flex items-end justify-between px-2">
+<div class="w-1.5 bg-on-primary-container rounded-t-full h-1/4 opacity-50"></div>
+<div class="w-1.5 bg-on-primary-container rounded-t-full h-2/4 opacity-50"></div>
+<div class="w-1.5 bg-tertiary-fixed rounded-t-full h-3/4 relative">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold text-tertiary-fixed">30d</div>
+</div>
+<div class="w-1.5 bg-on-primary-container rounded-t-full h-2/5 opacity-50"></div>
+<div class="w-1.5 bg-on-primary-container rounded-t-full h-3/5 opacity-50"></div>
+<div class="w-1.5 bg-tertiary-fixed-dim rounded-t-full h-[85%] relative">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold text-tertiary-fixed-dim">60d</div>
+</div>
+<div class="w-1.5 bg-on-primary-container rounded-t-full h-4/5 opacity-50"></div>
+<div class="w-1.5 bg-on-primary-container rounded-t-full h-[90%] opacity-50"></div>
+<div class="w-1.5 bg-secondary-fixed rounded-t-full h-full relative shadow-[0_0_15px_rgba(213,227,253,0.4)]">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold text-secondary-fixed">90d</div>
+</div>
+</div>
+<div class="mt-8 text-center">
+<span class="block text-display-sm font-headline font-extrabold text-on-primary tracking-tight">$14,250</span>
+<span class="text-label-sm text-on-primary-container">Projected end-of-quarter surplus</span>
+</div>
+</div>
+</div>
+<!-- Tactical Adjustments - Span 6 -->
+<div class="md:col-span-6 bg-surface-container-lowest rounded-xl premium-shadow p-6">
+<div class="flex justify-between items-center mb-6">
+<h2 class="text-title-lg font-headline font-bold text-primary">Tactical Interventions</h2>
+<span class="material-symbols-outlined text-secondary">tune</span>
+</div>
+<div class="space-y-4">
+<div class="group relative overflow-hidden rounded-xl border border-outline-variant/15 p-5 hover:bg-surface-container-low transition-colors">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-tertiary-fixed"></div>
+<h3 class="text-body-lg font-semibold text-primary mb-2">Pause Streaming Subs</h3>
+<p class="text-body-sm text-on-surface-variant mb-4">You have 3 inactive subscriptions (Netflix, Hulu, Peacock). Pausing them will yield immediate liquidity.</p>
+<button class="bg-primary text-on-primary text-label-md font-medium px-4 py-2 rounded-xl hover:bg-surface-tint transition-colors">Execute Strategy (+$42/mo)</button>
+</div>
+<div class="group relative overflow-hidden rounded-xl border border-outline-variant/15 p-5 hover:bg-surface-container-low transition-colors">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-secondary-fixed-dim"></div>
+<h3 class="text-body-lg font-semibold text-primary mb-2">Automate Micro-Transfers</h3>
+<p class="text-body-sm text-on-surface-variant mb-4">Rounding up daily transactions to your high-yield vault aligns with your long-term accumulation goals.</p>
+<button class="bg-secondary-container text-on-secondary-container text-label-md font-medium px-4 py-2 rounded-xl hover:bg-surface-container-highest transition-colors">Enable Feature</button>
+</div>
+</div>
+</div>
+<!-- What-If Scenarios - Span 6 -->
+<div class="md:col-span-6 bg-surface-container-lowest rounded-xl premium-shadow p-6 flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h2 class="text-title-lg font-headline font-bold text-primary">Scenario Modeling</h2>
+<span class="material-symbols-outlined text-secondary">account_tree</span>
+</div>
+<div class="flex-1 flex flex-col justify-center space-y-6">
+<div>
+<div class="flex justify-between items-end mb-2">
+<label class="text-label-md font-medium text-primary">What if I save 15% more?</label>
+<span class="text-body-sm font-bold text-on-tertiary-container">+$1,200/yr</span>
+</div>
+<div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full w-[15%] growth-gradient rounded-full"></div>
+</div>
+<p class="text-xs text-on-surface-variant mt-2 text-right">Accelerates goal 'Downpayment' by 3 months.</p>
+</div>
+<div class="pt-4 border-t border-outline-variant/15">
+<div class="flex justify-between items-end mb-2">
+<label class="text-label-md font-medium text-primary">What if I pay off Chase Card early?</label>
+<span class="text-body-sm font-bold text-on-tertiary-container">Save $340 interest</span>
+</div>
+<div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full w-[80%] bg-secondary-container rounded-full"></div>
+</div>
+<p class="text-xs text-on-surface-variant mt-2 text-right">Requires diverting $400 from next paycheck.</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 pb-safe md:hidden bg-[#f8f9ff]/90 dark:bg-[#0b1c30]/90 backdrop-blur-xl shadow-[0_-10px_30px_rgba(11,28,48,0.04)] no-border tonal-layering">
+<div class="flex justify-around items-center w-full h-20 px-4">
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined mb-1">dashboard</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Overview</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined mb-1">receipt_long</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Activity</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#000000] dark:text-[#6ffbbe] bg-[#d3e4fe]/50 dark:bg-[#131b2e] rounded-xl px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">insights</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined mb-1">subscriptions</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Subs</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined mb-1">account_balance_wallet</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Budget</span>
+</a>
+</div>
+</nav>
+</body></html>

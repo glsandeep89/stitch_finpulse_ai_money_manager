@@ -1,0 +1,20 @@
+{
+  "name": "finpulse",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "backend:restart": "powershell -ExecutionPolicy Bypass -File ./scripts/restart-backend.ps1",
+    "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w backend && npm run build -w frontend",
+    "lint": "npm run lint -w backend --if-present && npm run lint -w frontend --if-present",
+    "validate:local": "node scripts/validate-local.mjs",
+    "test": "npm run test -w backend",
+    "test:e2e": "npm run test:e2e -w frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

@@ -1,0 +1,24 @@
+---
+description: Restart FinPulse API after backend or env changes
+globs:
+  - backend/**/*
+  - .env
+  - .env.example
+alwaysApply: false
+---
+
+# Backend restarts (agent)
+
+When you change anything under `backend/` or API-related root `.env` values, **restart the backend yourself** in the terminal—do not only tell the user to restart.
+
+From the repo root (Windows):
+
+```bash
+npm run backend:restart
+```
+
+This frees port **3001** and runs `npm run dev` in `backend/`.
+
+**Note:** If the user already has `npm run dev -w backend` running, `tsx watch` reloads automatically on **`.ts` file edits** only. Changes to **`.env`** or a **crashed** process still need `npm run backend:restart` (or equivalent).
+
+If the user asks to start or restart the backend, run `npm run backend:restart` (or `cd backend && npm run dev` if they only need a start and port is free).

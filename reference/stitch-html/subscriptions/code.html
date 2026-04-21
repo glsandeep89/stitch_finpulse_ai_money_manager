@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FinPulse - Subscriptions</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#131b2e",
+                        "outline": "#76777d",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "surface-container-low": "#eff4ff",
+                        "tertiary-fixed": "#6ffbbe",
+                        "secondary-fixed": "#d5e3fd",
+                        "inverse-surface": "#213145",
+                        "surface": "#f8f9ff",
+                        "tertiary-container": "#002113",
+                        "on-background": "#0b1c30",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "on-error-container": "#93000a",
+                        "surface-bright": "#f8f9ff",
+                        "on-tertiary-fixed": "#002113",
+                        "surface-container": "#e5eeff",
+                        "surface-container-high": "#dce9ff",
+                        "primary-fixed-dim": "#bec6e0",
+                        "on-tertiary-container": "#009668",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#0d1c2f",
+                        "surface-container-highest": "#d3e4fe",
+                        "secondary": "#515f74",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "tertiary": "#000000",
+                        "error": "#ba1a1a",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-primary-fixed-variant": "#3f465c",
+                        "secondary-fixed-dim": "#b9c7e0",
+                        "on-secondary-container": "#57657b",
+                        "on-secondary-fixed-variant": "#3a485c",
+                        "inverse-primary": "#bec6e0",
+                        "on-primary": "#ffffff",
+                        "on-surface-variant": "#45464d",
+                        "error-container": "#ffdad6",
+                        "primary": "#000000",
+                        "on-surface": "#0b1c30",
+                        "primary-fixed": "#dae2fd",
+                        "background": "#f8f9ff",
+                        "on-primary-container": "#7c839b",
+                        "secondary-container": "#d5e3fd",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#c6c6cd",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-tint": "#565e74",
+                        "on-primary-fixed": "#131b2e",
+                        "surface-dim": "#cbdbf5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {},
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: theme('colors.background');
+            color: theme('colors.on-surface');
+            -webkit-font-smoothing: antialiased;
+        }
+        h1, h2, h3, h4, h5, h6, .font-headline {
+            font-family: 'Manrope', sans-serif;
+        }
+        /* Custom Scrollbar for a cleaner look */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: theme('colors.outline-variant');
+            border-radius: theme('borderRadius.full');
+        }
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
+        /* Gradient Texture */
+        .gradient-texture {
+            background: linear-gradient(135deg, theme('colors.primary') 0%, theme('colors.primary-container') 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen pb-24 md:pb-0 pt-20">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#f8f9ff]/80 dark:bg-[#0b1c30]/80 backdrop-blur-md text-[#000000] dark:text-[#ffffff] font-manrope font-semibold tracking-tight shadow-[0_20px_40px_rgba(11,28,48,0.06)] flex justify-between items-center px-6 h-16 w-full no-border tonal-shift bg-[#eff4ff] dark:bg-[#131b2e] transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-high flex-shrink-0 border border-outline-variant/15">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Close up portrait of a young professional male in natural soft lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAxBbitU-pLYmErtV8aJS2LKlM3C1Cjk6Ji2e3u8OyKVY4msl9YsHEWEzX_ljmtlCAZXwTeUe98vkWZ9h4DSXMiWLlze6wDoo08AIJ4QkkzthrqLfeFCzxw2TG18v6T3ti0ajKAi_fSKB2U8mk8LlqN_sDq-Dq3jZithsiHJdHY1TWoCAaRbnv3vQgbJFDa7EDHlloBV-r76aa345CMDuk4LNDOKDc16TP8sl2mdojT0g8-7Y8wOGxhjiTqnWcPykyDQI5ZFE4aBA"/>
+</div>
+<span class="text-xl font-manrope font-extrabold text-[#000000] dark:text-[#ffffff]">FinPulse</span>
+</div>
+<!-- Desktop Navigation (Hidden on Mobile) -->
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-[#45464d] dark:text-[#c6c6cd] hover:text-[#009668] transition-all flex flex-col items-center gap-1 active:scale-95 duration-200 hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] rounded-xl px-3 py-1" href="#">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 0;">dashboard</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Overview</span>
+</a>
+<a class="text-[#45464d] dark:text-[#c6c6cd] hover:text-[#009668] transition-all flex flex-col items-center gap-1 active:scale-95 duration-200 hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] rounded-xl px-3 py-1" href="#">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 0;">receipt_long</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Activity</span>
+</a>
+<a class="text-[#45464d] dark:text-[#c6c6cd] hover:text-[#009668] transition-all flex flex-col items-center gap-1 active:scale-95 duration-200 hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] rounded-xl px-3 py-1" href="#">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 0;">insights</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Insights</span>
+</a>
+<a class="text-[#009668] font-bold flex flex-col items-center gap-1 active:scale-95 duration-200 hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] rounded-xl px-3 py-1" href="#">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">subscriptions</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Subs</span>
+</a>
+<a class="text-[#45464d] dark:text-[#c6c6cd] hover:text-[#009668] transition-all flex flex-col items-center gap-1 active:scale-95 duration-200 hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] rounded-xl px-3 py-1" href="#">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 0;">account_balance_wallet</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Budget</span>
+</a>
+</nav>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-[#000000] dark:text-[#ffffff] hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+</button>
+</header>
+<main class="max-w-6xl mx-auto px-4 md:px-8 py-8 flex flex-col gap-10">
+<!-- Page Header & Summary -->
+<section class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b-0">
+<div>
+<h1 class="font-headline text-4xl md:text-5xl font-extrabold text-on-surface tracking-tight mb-2">Subscriptions</h1>
+<p class="text-on-surface-variant font-medium">Manage your recurring commitments.</p>
+</div>
+<!-- Monthly Total Card (Glassmorphism/Layered) -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_20px_40px_rgba(11,28,48,0.06)] min-w-[240px] flex items-center justify-between border border-outline-variant/15">
+<div>
+<span class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest block mb-1">Monthly Total</span>
+<span class="font-headline text-3xl font-extrabold text-primary">$142.94</span>
+</div>
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-2xl">account_balance</span>
+</div>
+</div>
+</section>
+<!-- AI Suggestions Bento -->
+<section>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Main AI Suggestion (Gradient Texture) -->
+<div class="md:col-span-2 gradient-texture rounded-xl p-8 text-on-primary flex flex-col justify-between relative overflow-hidden shadow-[0_20px_40px_rgba(11,28,48,0.06)] group">
+<!-- Decorative blur -->
+<div class="absolute -top-24 -right-24 w-64 h-64 bg-tertiary-fixed opacity-20 rounded-full blur-3xl group-hover:opacity-30 transition-opacity duration-700"></div>
+<div class="flex items-center gap-3 mb-6 relative z-10">
+<span class="material-symbols-outlined text-tertiary-fixed">smart_toy</span>
+<span class="text-sm font-semibold tracking-wider uppercase text-tertiary-fixed">AI Insight</span>
+</div>
+<div class="relative z-10">
+<h3 class="font-headline text-2xl font-bold mb-2">Unused Subscription Detected</h3>
+<p class="text-primary-fixed-dim max-w-md mb-6 leading-relaxed">You haven't used <span class="font-semibold text-on-primary">GymPass Pro</span> in over 45 days. Canceling could save you $39.99/mo.</p>
+<button class="bg-surface-container-lowest text-primary px-6 py-3 rounded-xl font-semibold text-sm hover:bg-surface transition-colors active:scale-95 duration-200">
+                            Review &amp; Cancel
+                        </button>
+</div>
+</div>
+<!-- Secondary Insight -->
+<div class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/15 flex flex-col shadow-[0_20px_40px_rgba(11,28,48,0.06)] relative overflow-hidden group">
+<div class="absolute -bottom-10 -left-10 w-32 h-32 bg-error opacity-5 rounded-full blur-2xl"></div>
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-error text-xl">trending_up</span>
+<span class="text-xs font-semibold tracking-wider uppercase text-secondary">Price Increase</span>
+</div>
+<h4 class="font-headline text-lg font-bold text-on-surface mb-2">StreamFlix Max</h4>
+<p class="text-on-surface-variant text-sm mb-4">Price jumping from $15.99 to $18.99 next billing cycle.</p>
+<div class="mt-auto">
+<button class="text-sm font-semibold text-primary underline decoration-outline-variant hover:decoration-primary transition-colors">See Alternatives</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Main Content Area: Split Layout -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+<!-- Subscriptions List (Left, 2 columns wide) -->
+<div class="lg:col-span-2">
+<div class="flex items-center justify-between mb-6">
+<h2 class="font-headline text-xl font-bold text-on-surface">Active Subscriptions</h2>
+<button class="text-sm font-semibold text-on-surface-variant flex items-center gap-1 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+                        Sort by Price
+                    </button>
+</div>
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant/15 shadow-[0_20px_40px_rgba(11,28,48,0.06)] overflow-hidden">
+<!-- List Item 1 -->
+<div class="p-4 md:p-6 flex items-center justify-between hover:bg-surface-container-low transition-colors group cursor-pointer border-b border-outline-variant/10 last:border-0">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined">play_circle</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface text-base">StreamFlix</h4>
+<span class="text-xs text-on-surface-variant font-medium">Entertainment • Monthly</span>
+</div>
+</div>
+<div class="text-right flex items-center gap-6">
+<div class="hidden md:block text-right">
+<span class="block text-xs text-on-surface-variant mb-1">Next Bill</span>
+<span class="text-sm font-medium text-on-surface">Oct 12</span>
+</div>
+<div>
+<span class="font-headline font-bold text-lg text-primary block">$15.99</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors opacity-0 group-hover:opacity-100 hidden md:block">chevron_right</span>
+</div>
+</div>
+<!-- List Item 2 -->
+<div class="p-4 md:p-6 flex items-center justify-between hover:bg-surface-container-low transition-colors group cursor-pointer border-b border-outline-variant/10 last:border-0">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined">cloud</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface text-base">CloudSync Pro</h4>
+<span class="text-xs text-on-surface-variant font-medium">Software • Yearly</span>
+</div>
+</div>
+<div class="text-right flex items-center gap-6">
+<div class="hidden md:block text-right">
+<span class="block text-xs text-on-surface-variant mb-1">Next Bill</span>
+<span class="text-sm font-medium text-on-surface">Nov 01</span>
+</div>
+<div>
+<span class="font-headline font-bold text-lg text-primary block">$99.00</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors opacity-0 group-hover:opacity-100 hidden md:block">chevron_right</span>
+</div>
+</div>
+<!-- List Item 3 -->
+<div class="p-4 md:p-6 flex items-center justify-between hover:bg-surface-container-low transition-colors group cursor-pointer border-b border-outline-variant/10 last:border-0">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined">fitness_center</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface text-base">GymPass Pro</h4>
+<span class="text-xs text-error font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[10px]">warning</span>
+                                    Unused (45 days)
+                                </span>
+</div>
+</div>
+<div class="text-right flex items-center gap-6">
+<div class="hidden md:block text-right">
+<span class="block text-xs text-on-surface-variant mb-1">Next Bill</span>
+<span class="text-sm font-medium text-on-surface">Oct 15</span>
+</div>
+<div>
+<span class="font-headline font-bold text-lg text-primary block">$39.99</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors opacity-0 group-hover:opacity-100 hidden md:block">chevron_right</span>
+</div>
+</div>
+<!-- List Item 4 -->
+<div class="p-4 md:p-6 flex items-center justify-between hover:bg-surface-container-low transition-colors group cursor-pointer border-b border-outline-variant/10 last:border-0">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined">music_note</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface text-base">AudioVibe Premium</h4>
+<span class="text-xs text-on-surface-variant font-medium">Music • Monthly</span>
+</div>
+</div>
+<div class="text-right flex items-center gap-6">
+<div class="hidden md:block text-right">
+<span class="block text-xs text-on-surface-variant mb-1">Next Bill</span>
+<span class="text-sm font-medium text-on-surface">Oct 20</span>
+</div>
+<div>
+<span class="font-headline font-bold text-lg text-primary block">$10.99</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors opacity-0 group-hover:opacity-100 hidden md:block">chevron_right</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Upcoming Timeline (Right, 1 column wide) -->
+<div class="lg:col-span-1">
+<h2 class="font-headline text-xl font-bold text-on-surface mb-6">Upcoming Next 30 Days</h2>
+<div class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/15 shadow-[0_20px_40px_rgba(11,28,48,0.06)] relative">
+<!-- Vertical Line connecting timeline -->
+<div class="absolute left-10 top-10 bottom-10 w-px bg-outline-variant/20 z-0 hidden md:block"></div>
+<div class="flex flex-col gap-8 relative z-10">
+<!-- Timeline Item 1 -->
+<div class="flex items-start gap-4">
+<div class="w-8 h-8 rounded-full bg-tertiary-fixed text-tertiary-container flex items-center justify-center flex-shrink-0 mt-1 shadow-sm">
+<span class="material-symbols-outlined text-sm font-bold">calendar_today</span>
+</div>
+<div class="flex-1 bg-surface rounded-xl p-4 border border-outline-variant/10">
+<div class="flex justify-between items-center mb-1">
+<span class="text-xs font-bold text-on-tertiary-container uppercase tracking-wider">Tomorrow</span>
+<span class="font-headline font-bold text-primary">$15.99</span>
+</div>
+<h5 class="text-sm font-semibold text-on-surface">StreamFlix</h5>
+</div>
+</div>
+<!-- Timeline Item 2 -->
+<div class="flex items-start gap-4">
+<div class="w-8 h-8 rounded-full bg-surface-container-high text-primary flex items-center justify-center flex-shrink-0 mt-1 border border-outline-variant/15">
+<span class="text-xs font-bold">15</span>
+</div>
+<div class="flex-1 bg-surface rounded-xl p-4 border border-outline-variant/10 opacity-70">
+<div class="flex justify-between items-center mb-1">
+<span class="text-xs font-semibold text-on-surface-variant">Oct 15</span>
+<span class="font-headline font-bold text-primary">$39.99</span>
+</div>
+<h5 class="text-sm font-semibold text-on-surface">GymPass Pro</h5>
+</div>
+</div>
+<!-- Timeline Item 3 -->
+<div class="flex items-start gap-4">
+<div class="w-8 h-8 rounded-full bg-surface-container-high text-primary flex items-center justify-center flex-shrink-0 mt-1 border border-outline-variant/15">
+<span class="text-xs font-bold">20</span>
+</div>
+<div class="flex-1 bg-surface rounded-xl p-4 border border-outline-variant/10 opacity-70">
+<div class="flex justify-between items-center mb-1">
+<span class="text-xs font-semibold text-on-surface-variant">Oct 20</span>
+<span class="font-headline font-bold text-primary">$10.99</span>
+</div>
+<h5 class="text-sm font-semibold text-on-surface">AudioVibe Premium</h5>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 pb-safe bg-[#f8f9ff]/90 dark:bg-[#0b1c30]/90 backdrop-blur-xl shadow-[0_-10px_30px_rgba(11,28,48,0.04)] no-border tonal-layering flex justify-around items-center h-20 px-4">
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-2xl mb-1" style="font-variation-settings: 'FILL' 0;">dashboard</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Overview</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-2xl mb-1" style="font-variation-settings: 'FILL' 0;">receipt_long</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Activity</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-2xl mb-1" style="font-variation-settings: 'FILL' 0;">insights</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#000000] dark:text-[#6ffbbe] bg-[#d3e4fe]/50 dark:bg-[#131b2e] rounded-xl px-3 py-1 active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-2xl mb-1" style="font-variation-settings: 'FILL' 1;">subscriptions</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Subs</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-2xl mb-1" style="font-variation-settings: 'FILL' 0;">account_balance_wallet</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest">Budget</span>
+</a>
+</nav>
+</body></html>

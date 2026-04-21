@@ -1,0 +1,784 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { AiOutputCard, AiOutputEmpty } from "../components/ai/AiOutputCard";
+import { api } from "../lib/api";
+import type { AiOutputRow, AiOutputsResponse } from "../lib/aiOutputs";
+import { useAuth } from "../contexts/AuthContext";
+
+type Tx = {
+  plaid_transaction_id: string;
+  plaid_account_id: string | null;
+  merchant_name: string | null;
+  amount: number;
+  trans_date: string;
+  category: string[] | null;
+};
+
+type Account = { plaid_account_id: string; name: string; type?: string; subtype?: string };
+
+type ActivityProps = {
+  title?: string;
+  subtitle?: string;
+  defaultCreditOnly?: boolean;
+  defaultInvestmentScope?: boolean;
+  hideAnomalyCard?: boolean;
+  hideTopSummaryCards?: boolean;
+  hideAssistantTools?: boolean;
+};
+
+function monthBounds() {
+  const to = new Date();
+  const from = new Date(to.getFullYear(), to.getMonth(), 1);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
+
+function primaryCategory(t: Tx): string {
+  return (t.category ?? [])[0] ?? "Other";
+}
+
+function exportLedgerCsv(txs: Tx[], accountMap: Record<string, string>) {
+  const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+  const lines = [
+    ["Date", "Merchant", "Category", "Account", "Amount"].join(","),
+    ...txs.map((t) =>
+      [
+        esc(t.trans_date),
+        esc(t.merchant_name ?? ""),
+        esc((t.category ?? []).join(" / ")),
+        esc(t.plaid_account_id ? accountMap[t.plaid_account_id] ?? t.plaid_account_id : ""),
+        esc(String(t.amount)),
+      ].join(",")
+    ),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `finpulse-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function merchantIcon(_name: string): string {
+  return "payments";
+}
+
+/** Ported from `reference/stitch-html/activity_web/code.html` */
+export default function Activity({
+  title = "Transactions",
+  subtitle = "Monitor and refine your financial flows.",
+  defaultCreditOnly = false,
+  defaultInvestmentScope = false,
+  hideAnomalyCard = false,
+  hideTopSummaryCards = false,
+  hideAssistantTools = false,
+}: ActivityProps) {
+  const { session } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [txs, setTxs] = useState<Tx[]>([]);
+  const [merchants, setMerchants] = useState<{ merchant_name: string; total_amount: number }[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const defaults = monthBounds();
+  const [dateFrom, setDateFrom] = useState(defaults.from);
+  const [dateTo, setDateTo] = useState(defaults.to);
+  const [merchantFilter, setMerchantFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState(
+    () => new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").get("category") ?? ""
+  );
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
+  const accountsSeeded = useRef(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [labelsByTx, setLabelsByTx] = useState<Record<string, string>>({});
+  const [labelTxId, setLabelTxId] = useState("");
+  const [labelText, setLabelText] = useState("");
+  const [labelShared, setLabelShared] = useState(false);
+  const [voiceUtterance, setVoiceUtterance] = useState("");
+  const [voiceDraft, setVoiceDraft] = useState<{ amount: number; category: string; merchant_name: string } | null>(null);
+  const [autoMerchant, setAutoMerchant] = useState("SQ *LITTLE LUNCH");
+  const [autoCategory, setAutoCategory] = useState<{ category: string; confidence: number; rationale: string } | null>(
+    null
+  );
+  const [anomalyRow, setAnomalyRow] = useState<AiOutputRow | null>(null);
+
+  const filtersRef = useRef({
+    dateFrom,
+    dateTo,
+    merchantFilter,
+    categoryFilter,
+    minAmount,
+    maxAmount,
+  });
+  filtersRef.current = { dateFrom, dateTo, merchantFilter, categoryFilter, minAmount, maxAmount };
+
+  useEffect(() => {
+    const c = searchParams.get("category");
+    if (c !== null) setCategoryFilter(c);
+  }, [searchParams]);
+
+  const loadMeta = useCallback(async () => {
+    if (!session?.access_token) return;
+    try {
+      const [cats, acc] = await Promise.all([
+        api<{ categories: string[] }>("/meta/transaction-categories", { accessToken: session.access_token }),
+        api<{ accounts: Record<string, unknown>[] }>("/plaid/accounts", { accessToken: session.access_token }),
+      ]);
+      setCategories(cats.categories);
+      setAccounts(
+        (acc.accounts ?? []).map((a) => ({
+          plaid_account_id: String(a.plaid_account_id),
+          name: String(a.name ?? "Account"),
+          type: String(a.type ?? ""),
+          subtype: String(a.subtype ?? ""),
+        }))
+      );
+    } catch {
+      /* optional */
+    }
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    if (accounts.length > 0 && !accountsSeeded.current) {
+      if (defaultCreditOnly) {
+        const credit = accounts
+          .filter((a) => {
+            const t = (a.type ?? "").toLowerCase();
+            const st = (a.subtype ?? "").toLowerCase();
+            return t === "credit" || st.includes("credit");
+          })
+          .map((a) => a.plaid_account_id);
+        setSelectedAccountIds(new Set(credit.length > 0 ? credit : accounts.map((a) => a.plaid_account_id)));
+      } else if (defaultInvestmentScope) {
+        const investmentScope = accounts
+          .filter((a) => {
+            const t = (a.type ?? "").toLowerCase();
+            const st = (a.subtype ?? "").toLowerCase();
+            const n = (a.name ?? "").toLowerCase();
+            if (t === "credit" || st.includes("credit")) return false;
+            if (
+              st.includes("escrow") ||
+              st.includes("mortgage") ||
+              st.includes("auto") ||
+              st.includes("car") ||
+              n.includes("escrow") ||
+              n.includes("mortgage") ||
+              n.includes("auto loan") ||
+              n.includes("car loan")
+            ) {
+              return false;
+            }
+            return true;
+          })
+          .map((a) => a.plaid_account_id);
+        setSelectedAccountIds(
+          new Set(investmentScope.length > 0 ? investmentScope : accounts.map((a) => a.plaid_account_id))
+        );
+      } else {
+        setSelectedAccountIds(new Set(accounts.map((a) => a.plaid_account_id)));
+      }
+      accountsSeeded.current = true;
+    }
+  }, [accounts, defaultCreditOnly, defaultInvestmentScope]);
+
+  const load = useCallback(async () => {
+    if (!session?.access_token) {
+      setLoading(false);
+      return;
+    }
+    setErr(null);
+    setLoading(true);
+    const f = filtersRef.current;
+    const catFromUrl = searchParams.get("category");
+    const qFromUrl = searchParams.get("q")?.trim() ?? "";
+    try {
+      const params = new URLSearchParams();
+      if (f.dateFrom) params.set("from", f.dateFrom);
+      if (f.dateTo) params.set("to", f.dateTo);
+      if (qFromUrl) params.set("q", qFromUrl);
+      else if (f.merchantFilter.trim()) params.set("merchant", f.merchantFilter.trim());
+      const cat = catFromUrl?.trim() || f.categoryFilter.trim();
+      if (cat) params.set("category", cat);
+      if (f.minAmount.trim() !== "") {
+        const n = Number(f.minAmount);
+        if (!Number.isNaN(n)) params.set("minAmount", String(n));
+      }
+      if (f.maxAmount.trim() !== "") {
+        const n = Number(f.maxAmount);
+        if (!Number.isNaN(n)) params.set("maxAmount", String(n));
+      }
+      params.set("limit", "5000");
+      const q = params.toString() ? `?${params.toString()}` : "";
+      const t = await api<{ transactions: Tx[] }>(`/transactions${q}`, { accessToken: session.access_token });
+      setTxs(t.transactions);
+      const mf = new URLSearchParams();
+      if (f.dateFrom) mf.set("from", f.dateFrom);
+      if (f.dateTo) mf.set("to", f.dateTo);
+      const mq = mf.toString() ? `?${mf.toString()}` : "";
+      const m = await api<{ merchants: { merchant_name: string; total_amount: number }[] }>(
+        `/analytics/spending-by-merchant${mq}`,
+        { accessToken: session.access_token }
+      );
+      setMerchants(m.merchants.slice(0, 12));
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  }, [session?.access_token, searchParams]);
+
+  useEffect(() => {
+    loadMeta();
+  }, [loadMeta]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    load();
+  }, [session?.access_token, load, searchParams]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    void (async () => {
+      try {
+        const out = await api<AiOutputsResponse>("/ai-outputs?families=anomaly", {
+          accessToken: session.access_token,
+        });
+        setAnomalyRow(out.byFamily?.anomaly ?? null);
+      } catch {
+        setAnomalyRow(null);
+      }
+    })();
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    if (!session?.access_token || txs.length === 0) {
+      setLabelsByTx({});
+      return;
+    }
+    const ids = txs.slice(0, 400).map((t) => t.plaid_transaction_id);
+    const qs = ids.join(",");
+    if (!qs) return;
+    void api<{ labels: { plaid_transaction_id: string; label: string }[] }>(
+      `/meta/transaction-labels?ids=${encodeURIComponent(qs)}`,
+      { accessToken: session.access_token }
+    )
+      .then((r) => {
+        const m: Record<string, string> = {};
+        for (const l of r.labels ?? []) m[l.plaid_transaction_id] = l.label;
+        setLabelsByTx(m);
+      })
+      .catch(() => setLabelsByTx({}));
+  }, [session?.access_token, txs]);
+
+  const accountMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const a of accounts) m[a.plaid_account_id] = a.name;
+    return m;
+  }, [accounts]);
+
+  const visibleAccounts = useMemo(() => {
+    if (!defaultCreditOnly) return accounts;
+    if (defaultCreditOnly) {
+      return accounts.filter((a) => {
+        const t = (a.type ?? "").toLowerCase();
+        const st = (a.subtype ?? "").toLowerCase();
+        return t === "credit" || st.includes("credit");
+      });
+    }
+    if (defaultInvestmentScope) {
+      return accounts.filter((a) => {
+        const t = (a.type ?? "").toLowerCase();
+        const st = (a.subtype ?? "").toLowerCase();
+        const n = (a.name ?? "").toLowerCase();
+        if (t === "credit" || st.includes("credit")) return false;
+        if (
+          st.includes("escrow") ||
+          st.includes("mortgage") ||
+          st.includes("auto") ||
+          st.includes("car") ||
+          n.includes("escrow") ||
+          n.includes("mortgage") ||
+          n.includes("auto loan") ||
+          n.includes("car loan")
+        ) {
+          return false;
+        }
+        return true;
+      });
+    }
+    return accounts.filter((a) => {
+      const t = (a.type ?? "").toLowerCase();
+      const st = (a.subtype ?? "").toLowerCase();
+      return t === "credit" || st.includes("credit");
+    });
+  }, [accounts, defaultCreditOnly, defaultInvestmentScope]);
+
+  const filteredTxs = useMemo(() => {
+    const scopedIds = new Set(visibleAccounts.map((a) => a.plaid_account_id));
+    const source =
+      (defaultCreditOnly || defaultInvestmentScope) && scopedIds.size > 0
+        ? txs.filter((t) => t.plaid_account_id && scopedIds.has(t.plaid_account_id))
+        : txs;
+    if (visibleAccounts.length === 0 || selectedAccountIds.size === 0) return source;
+    if (selectedAccountIds.size >= visibleAccounts.length) return source;
+    return source.filter((t) => t.plaid_account_id && selectedAccountIds.has(t.plaid_account_id));
+  }, [txs, selectedAccountIds, visibleAccounts, defaultCreditOnly, defaultInvestmentScope]);
+
+  const topMerchant = merchants[0];
+  const topMerchantAmount = topMerchant ? Math.abs(topMerchant.total_amount) : 0;
+
+  const categoryTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of filteredTxs) {
+      const c = primaryCategory(t);
+      map.set(c, (map.get(c) ?? 0) + Math.abs(Number(t.amount)));
+    }
+    const total = [...map.values()].reduce((a, b) => a + b, 0) || 1;
+    return [...map.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([name, amt]) => ({ name, pct: (amt / total) * 100 }));
+  }, [filteredTxs]);
+
+  const saveLabel = async () => {
+    if (!session?.access_token || !labelTxId.trim() || !labelText.trim()) return;
+    setErr(null);
+    try {
+      await api("/meta/transaction-labels", {
+        method: "POST",
+        accessToken: session.access_token,
+        body: JSON.stringify({
+          plaid_transaction_id: labelTxId.trim(),
+          label: labelText.trim(),
+          shared: labelShared,
+        }),
+      });
+      setLabelsByTx((prev) => ({ ...prev, [labelTxId.trim()]: labelText.trim() }));
+      setLabelTxId("");
+      setLabelText("");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to save label");
+    }
+  };
+
+  const buildVoiceDraft = async () => {
+    if (!session?.access_token || !voiceUtterance.trim()) return;
+    setErr(null);
+    try {
+      const out = await api<{ draft: { amount: number; category: string; merchant_name: string } }>(
+        "/ai/voice-log-draft",
+        {
+          method: "POST",
+          accessToken: session.access_token,
+          body: JSON.stringify({ utterance: voiceUtterance.trim() }),
+        }
+      );
+      setVoiceDraft(out.draft);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to draft");
+    }
+  };
+
+  const runAutoCategorize = async () => {
+    if (!session?.access_token || !autoMerchant.trim()) return;
+    setErr(null);
+    try {
+      const out = await api<{ category: string; confidence: number; rationale: string }>("/ai/auto-categorize", {
+        method: "POST",
+        accessToken: session.access_token,
+        body: JSON.stringify({ merchant_name: autoMerchant.trim() }),
+      });
+      setAutoCategory(out);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to categorize");
+    }
+  };
+
+  const toggleAccount = (id: string) => {
+    setSelectedAccountIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllAccounts = () => {
+    setSelectedAccountIds(new Set(visibleAccounts.map((a) => a.plaid_account_id)));
+  };
+
+  return (
+    <main className="w-full overflow-y-auto">
+      {err ? <p className="text-sm text-error mb-4">{err}</p> : null}
+
+      <div className="mb-10">
+        <h2 className="font-headline text-3xl font-bold text-on-surface tracking-tight">{title}</h2>
+        <p className="font-body text-sm text-on-surface-variant mt-2">{subtitle}</p>
+        {loading ? (
+          <p className="text-xs text-on-surface-variant mt-2 font-body" aria-live="polite">
+            Loading…
+          </p>
+        ) : null}
+      </div>
+
+      {!hideAnomalyCard ? <section className="mb-8" aria-label="Spending anomalies">
+        {anomalyRow ? (
+          <AiOutputCard row={anomalyRow} label="Spending anomalies">
+            {Array.isArray((anomalyRow.payload as { anomalies?: unknown })?.anomalies) &&
+            ((anomalyRow.payload as { anomalies: { merchant: string; amount: number; reason: string }[] }).anomalies
+              ?.length ?? 0) > 0 ? (
+              <ul className="mt-3 space-y-2 text-sm font-body text-on-surface">
+                {(
+                  (anomalyRow.payload as { anomalies: { merchant: string; amount: number; reason: string }[] })
+                    .anomalies ?? []
+                ).map((a, i) => (
+                  <li
+                    key={`${a.merchant}-${i}`}
+                    className="rounded-lg bg-surface-container-low px-3 py-2 border border-outline-variant/10"
+                  >
+                    <span className="font-medium text-on-background">{a.merchant}</span> ·{" "}
+                    {Math.abs(a.amount).toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                    <p className="text-xs text-on-surface-variant mt-1">{a.reason}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs text-on-surface-variant font-body">No spike or duplicate-pattern flags right now.</p>
+            )}
+          </AiOutputCard>
+        ) : (
+          <div className="rounded-xl border border-outline-variant/20 bg-surface-container-low p-4">
+            <h3 className="font-headline text-sm font-semibold text-on-surface mb-1">Spending anomalies</h3>
+            <AiOutputEmpty message="Anomaly scan runs after account sync." />
+          </div>
+        )}
+      </section> : null}
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        <aside className="xl:col-span-3 space-y-8">
+          <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow ring-1 ring-outline-variant/10">
+            <h3 className="font-headline text-sm font-bold text-on-surface mb-6 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">tune</span>
+              Refine
+            </h3>
+            <div className="mb-6">
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-3">Date Range</label>
+              <div className="space-y-3">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full text-sm font-body text-on-surface rounded-xl border border-outline-variant/20 px-3 py-2 bg-surface-container-lowest"
+                />
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full text-sm font-body text-on-surface rounded-xl border border-outline-variant/20 px-3 py-2 bg-surface-container-lowest"
+                />
+              </div>
+            </div>
+            <div className="mb-6">
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-3">Category</label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full text-sm font-body text-on-surface rounded-xl border border-outline-variant/20 px-3 py-2 bg-transparent"
+              >
+                <option value="">All Categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="mb-8">
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-3">Account</label>
+              <div className="space-y-2">
+                {visibleAccounts.map((a) => (
+                  <label key={a.plaid_account_id} className="flex items-center gap-3 group cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedAccountIds.has(a.plaid_account_id)}
+                      onChange={() => toggleAccount(a.plaid_account_id)}
+                      className="rounded text-primary border-outline-variant focus:ring-primary w-4 h-4"
+                    />
+                    <span className="font-body text-sm text-on-surface group-hover:text-primary transition-colors">
+                      {a.name}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <button type="button" onClick={selectAllAccounts} className="text-xs text-on-secondary-container mt-2">
+                Select all
+              </button>
+            </div>
+            <div className="mb-6">
+              <label className="block font-body text-xs font-semibold text-on-surface-variant mb-1">Merchant</label>
+              <input
+                value={merchantFilter}
+                onChange={(e) => setMerchantFilter(e.target.value)}
+                className="w-full text-sm font-body rounded-xl border border-outline-variant/20 px-3 py-2"
+                placeholder="Optional"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-6">
+              <input
+                type="number"
+                placeholder="Min"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                className="text-sm rounded-xl border border-outline-variant/20 px-2 py-2"
+              />
+              <input
+                type="number"
+                placeholder="Max"
+                value={maxAmount}
+                onChange={(e) => setMaxAmount(e.target.value)}
+                className="text-sm rounded-xl border border-outline-variant/20 px-2 py-2"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={load}
+              className="w-full py-2.5 bg-secondary-container text-on-secondary-container rounded-xl font-body text-sm font-semibold hover:bg-surface-dim transition-colors"
+            >
+              Apply Filters
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const d = monthBounds();
+                setDateFrom(d.from);
+                setDateTo(d.to);
+                setMerchantFilter("");
+                setCategoryFilter("");
+                setMinAmount("");
+                setMaxAmount("");
+                selectAllAccounts();
+                setTimeout(() => load(), 0);
+              }}
+              className="w-full mt-2 text-xs text-on-surface-variant"
+            >
+              Reset month
+            </button>
+            {!hideAssistantTools ? <div className="mt-8 pt-6 border-t border-outline-variant/15">
+              <h4 className="font-headline text-xs font-bold text-on-surface mb-3">Transaction label</h4>
+              <p className="text-[10px] text-on-surface-variant font-body mb-2">
+                Paste a transaction id from the table below. Optional: share with household when joined.
+              </p>
+              <input
+                value={labelTxId}
+                onChange={(e) => setLabelTxId(e.target.value)}
+                placeholder="Transaction id"
+                className="w-full text-xs rounded-lg border border-outline-variant/20 px-2 py-2 mb-2 font-mono"
+              />
+              <input
+                value={labelText}
+                onChange={(e) => setLabelText(e.target.value)}
+                placeholder="Label"
+                className="w-full text-xs rounded-lg border border-outline-variant/20 px-2 py-2 mb-2"
+              />
+              <label className="flex items-center gap-2 text-xs text-on-surface-variant font-body mb-2">
+                <input
+                  type="checkbox"
+                  checked={labelShared}
+                  onChange={(e) => setLabelShared(e.target.checked)}
+                  className="rounded border-outline-variant"
+                />
+                Share with household
+              </label>
+              <button
+                type="button"
+                onClick={() => void saveLabel()}
+                className="w-full py-2 text-xs bg-secondary-container text-on-secondary-container rounded-xl font-semibold"
+              >
+                Save label
+              </button>
+            </div> : null}
+            {!hideAssistantTools ? <div className="mt-6 pt-6 border-t border-outline-variant/15">
+              <h4 className="font-headline text-xs font-bold text-on-surface mb-2">Voice quick-log draft</h4>
+              <input
+                value={voiceUtterance}
+                onChange={(e) => setVoiceUtterance(e.target.value)}
+                placeholder="Hey Tracker, I just spent 25 dollars on badminton court fees"
+                className="w-full text-xs rounded-lg border border-outline-variant/20 px-2 py-2 mb-2"
+              />
+              <button
+                type="button"
+                onClick={() => void buildVoiceDraft()}
+                className="w-full py-2 text-xs bg-secondary-container text-on-secondary-container rounded-xl font-semibold"
+              >
+                Parse voice text
+              </button>
+              {voiceDraft ? (
+                <p className="text-[10px] mt-2 text-on-surface-variant font-body">
+                  Draft: {voiceDraft.merchant_name} · ${voiceDraft.amount.toFixed(2)} · {voiceDraft.category}
+                </p>
+              ) : null}
+            </div> : null}
+            <div className="mt-6 pt-6 border-t border-outline-variant/15">
+              <h4 className="font-headline text-xs font-bold text-on-surface mb-2">Auto-categorization 2.0</h4>
+              <input
+                value={autoMerchant}
+                onChange={(e) => setAutoMerchant(e.target.value)}
+                className="w-full text-xs rounded-lg border border-outline-variant/20 px-2 py-2 mb-2"
+                placeholder="Merchant string"
+              />
+              <button
+                type="button"
+                onClick={() => void runAutoCategorize()}
+                className="w-full py-2 text-xs bg-secondary-container text-on-secondary-container rounded-xl font-semibold"
+              >
+                Suggest category
+              </button>
+              {autoCategory ? (
+                <p className="text-[10px] mt-2 text-on-surface-variant font-body">
+                  {autoCategory.category} ({Math.round(autoCategory.confidence * 100)}%): {autoCategory.rationale}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </aside>
+
+        <div className="xl:col-span-9 space-y-8">
+          {!hideTopSummaryCards ? <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow ring-1 ring-outline-variant/10 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <span className="material-symbols-outlined text-6xl">flight_takeoff</span>
+              </div>
+              <p className="font-body text-xs text-on-surface-variant mb-1">Top Volume</p>
+              <h4 className="font-headline text-lg font-bold text-on-surface mb-4 relative z-10">
+                {topMerchant?.merchant_name ?? "—"}
+              </h4>
+              <div className="flex items-end justify-between relative z-10">
+                <span className="font-headline text-2xl text-on-surface tracking-tight">
+                  {topMerchant
+                    ? topMerchantAmount.toLocaleString(undefined, { style: "currency", currency: "USD" })
+                    : "—"}
+                </span>
+              </div>
+            </div>
+            <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow ring-1 ring-outline-variant/10 relative overflow-hidden group md:col-span-2 bg-gradient-to-br from-surface-container-lowest to-surface-container-low">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <p className="font-body text-xs text-on-surface-variant mb-1">Concentration</p>
+                  <h4 className="font-headline text-lg font-bold text-on-surface">Spending by category</h4>
+                </div>
+                <span className="material-symbols-outlined text-on-surface-variant">more_horiz</span>
+              </div>
+              <div className="space-y-4">
+                {categoryTotals.length === 0 ? (
+                  <p className="text-sm text-on-surface-variant font-body">No data</p>
+                ) : (
+                  categoryTotals.map((row, idx) => (
+                    <div key={row.name}>
+                      <div className="flex justify-between text-xs font-body mb-1">
+                        <span className="text-on-surface font-medium">{row.name}</span>
+                        <span className="text-on-surface-variant">{Math.round(row.pct)}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+                        <div
+                          className={`h-full bg-primary rounded-full ${idx === 1 ? "opacity-60" : ""}`}
+                          style={{ width: `${Math.min(100, row.pct)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div> : null}
+
+          <div className="bg-surface-container-lowest rounded-xl ambient-shadow ring-1 ring-outline-variant/10 overflow-hidden">
+            <div className="p-6 border-b border-surface-container-low flex justify-between items-center bg-surface-bright">
+              <h3 className="font-headline text-lg font-bold text-on-surface">All transactions</h3>
+              <button
+                type="button"
+                onClick={() => exportLedgerCsv(filteredTxs, accountMap)}
+                className="text-sm font-body text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">download</span>
+                Export
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-low/50">
+                    <th scope="col" className="px-6 py-4 font-body text-xs font-semibold text-on-surface-variant w-32">
+                      Date
+                    </th>
+                    <th scope="col" className="px-6 py-4 font-body text-xs font-semibold text-on-surface-variant">
+                      Merchant
+                    </th>
+                    <th scope="col" className="px-6 py-4 font-body text-xs font-semibold text-on-surface-variant">
+                      Category
+                    </th>
+                    <th scope="col" className="px-6 py-4 font-body text-xs font-semibold text-on-surface-variant">
+                      Label
+                    </th>
+                    <th scope="col" className="px-6 py-4 font-body text-xs font-semibold text-on-surface-variant">
+                      Account
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-4 font-body text-xs font-semibold text-on-surface-variant text-right"
+                    >
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTxs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center text-on-surface-variant font-body text-sm">
+                        No transactions match.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTxs.map((t, i) => (
+                      <tr
+                        key={t.plaid_transaction_id}
+                        className={`hover:bg-surface-container-low/50 transition-colors ${i % 2 === 1 ? "bg-surface-bright" : ""}`}
+                      >
+                        <td className="px-6 py-5 font-body text-sm text-on-surface-variant">{t.trans_date}</td>
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface">
+                              <span className="material-symbols-outlined text-[16px]">{merchantIcon(t.merchant_name ?? "")}</span>
+                            </div>
+                            <span className="font-body font-medium text-on-surface">{t.merchant_name ?? "—"}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5 font-body text-sm text-on-surface-variant">
+                          {(t.category ?? []).join(" · ") || "—"}
+                        </td>
+                        <td className="px-6 py-5 font-body text-sm text-on-surface-variant">
+                          {labelsByTx[t.plaid_transaction_id] ?? "—"}
+                        </td>
+                        <td className="px-6 py-5 font-body text-sm text-on-surface-variant">
+                          {t.plaid_account_id ? accountMap[t.plaid_account_id] ?? "—" : "—"}
+                        </td>
+                        <td
+                          className={`px-6 py-5 font-body font-medium text-right ${
+                            t.amount < 0 ? "text-on-tertiary-container" : "text-on-surface"
+                          }`}
+                        >
+                          {t.amount.toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}

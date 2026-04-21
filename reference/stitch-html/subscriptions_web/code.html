@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FinPulse - Subscriptions</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary-fixed-variant": "#3a485c",
+                        "tertiary-fixed": "#6ffbbe",
+                        "secondary-fixed": "#d5e3fd",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "on-tertiary-fixed": "#002113",
+                        "on-surface-variant": "#45464d",
+                        "on-primary-container": "#7c839b",
+                        "error": "#ba1a1a",
+                        "outline-variant": "#c6c6cd",
+                        "error-container": "#ffdad6",
+                        "inverse-primary": "#bec6e0",
+                        "inverse-on-surface": "#eaf1ff",
+                        "surface-container": "#e5eeff",
+                        "primary-fixed": "#dae2fd",
+                        "on-primary-fixed-variant": "#3f465c",
+                        "secondary": "#515f74",
+                        "tertiary": "#000000",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "surface-variant": "#d3e4fe",
+                        "on-tertiary-container": "#009668",
+                        "surface-dim": "#cbdbf5",
+                        "on-error-container": "#93000a",
+                        "surface-container-lowest": "#ffffff",
+                        "on-background": "#0b1c30",
+                        "on-primary-fixed": "#131b2e",
+                        "surface-container-high": "#dce9ff",
+                        "inverse-surface": "#213145",
+                        "surface-bright": "#f8f9ff",
+                        "secondary-fixed-dim": "#b9c7e0",
+                        "surface": "#f8f9ff",
+                        "secondary-container": "#d5e3fd",
+                        "primary": "#000000",
+                        "on-surface": "#0b1c30",
+                        "tertiary-container": "#002113",
+                        "surface-container-highest": "#d3e4fe",
+                        "outline": "#76777d",
+                        "on-secondary-fixed": "#0d1c2f",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#bec6e0",
+                        "primary-container": "#131b2e",
+                        "on-secondary-container": "#57657b",
+                        "background": "#f8f9ff",
+                        "on-tertiary": "#ffffff",
+                        "surface-tint": "#565e74",
+                        "on-error": "#ffffff",
+                        "surface-container-low": "#eff4ff",
+                        "on-primary": "#ffffff"
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.125rem",
+                        lg: "0.25rem",
+                        xl: "0.5rem",
+                        full: "0.75rem"
+                    },
+                    fontFamily: {
+                        headline: ["Manrope", "sans-serif"],
+                        body: ["Inter", "sans-serif"],
+                        label: ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body min-h-screen antialiased flex">
+<!-- SideNavBar -->
+<nav class="h-screen w-64 fixed left-0 top-0 flex flex-col py-8 px-6 bg-slate-50 dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 hidden md:flex z-50">
+<div class="mb-12">
+<h1 class="text-2xl font-bold font-manrope tracking-tight text-black dark:text-white">FinPulse</h1>
+<p class="text-xs text-slate-500 font-label mt-1">Wealth Management</p>
+</div>
+<ul class="flex flex-col gap-2 flex-grow font-manrope text-sm font-medium">
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 dark:text-slate-400 font-medium hover:text-black dark:hover:text-emerald-300 transition-colors scale-95 duration-150" href="#">
+<span class="material-symbols-outlined text-xl">dashboard</span>
+<span>Overview</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 dark:text-slate-400 font-medium hover:text-black dark:hover:text-emerald-300 transition-colors scale-95 duration-150" href="#">
+<span class="material-symbols-outlined text-xl">receipt_long</span>
+<span>Activity</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 dark:text-slate-400 font-medium hover:text-black dark:hover:text-emerald-300 transition-colors scale-95 duration-150" href="#">
+<span class="material-symbols-outlined text-xl">insights</span>
+<span>Insights</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-black dark:text-white font-bold border-r-2 border-black dark:border-emerald-400 bg-surface-container-low hover:text-black dark:hover:text-emerald-300 transition-colors scale-95 duration-150" href="#">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+<span>Subscriptions</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 dark:text-slate-400 font-medium hover:text-black dark:hover:text-emerald-300 transition-colors scale-95 duration-150" href="#">
+<span class="material-symbols-outlined text-xl">account_balance_wallet</span>
+<span>Budget</span>
+</a>
+</li>
+</ul>
+<div class="mt-auto flex items-center gap-3 px-4 py-3">
+<img alt="FinPulse Logo" class="w-8 h-8 rounded-full object-cover" data-alt="Professional headshot of a man in a modern office setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA02lxBGh2NL0pdzrrGDRj2CruPLd5AsEf0Lkr2F6xU80EYQSSugkhnDqnM_1DJJ4S0zfs29zfSxfmEn_Tub7YcNG2EtGHAG8X2c6lD9d7MopmKQzofV39hVsNTtGIR03tuBz45tVMft_5TZh7_xHtlnyJ6ttoB1pZsOdmgUgyGlD4S3pb0GuLlY3s6nQ12eAHBv65-keRK_Fx035YcC0bMW5FXvLQZnYllbxu-7PGkfst3GGdWILmlq4MfQkfiNPEisNCI3nh1sw"/>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-primary">Alex Mercer</span>
+<span class="text-xs text-on-surface-variant">Pro Plan</span>
+</div>
+</div>
+</nav>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 w-[calc(100%-16rem)] h-16 z-40 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md shadow-sm dark:shadow-none border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-8 hidden md:flex transition-all duration-200">
+<div class="flex-1 flex items-center gap-4">
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input class="w-full pl-9 pr-4 py-2 bg-transparent border-none text-sm font-inter text-black dark:text-white placeholder-slate-500 focus:ring-0 focus:border-b-[1.5px] focus:border-primary transition-all" placeholder="Search transactions..." type="text"/>
+<div class="absolute inset-0 rounded-lg outline outline-1 outline-outline-variant/20 pointer-events-none"></div>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-lg transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-lg transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-0 md:ml-64 pt-20 p-8 w-full max-w-7xl mx-auto flex flex-col gap-8">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+<div>
+<h2 class="font-headline text-3xl font-bold text-primary tracking-tight">Recurring Commitments</h2>
+<p class="font-body text-sm text-on-surface-variant mt-1">Manage and optimize your monthly subscriptions.</p>
+</div>
+<button class="bg-primary text-on-primary px-6 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 hover:bg-primary-container transition-colors shadow-[0_8px_16px_rgba(11,28,48,0.1)]">
+<span class="material-symbols-outlined text-sm">add</span>
+                Add Subscription
+            </button>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- Hero Stat Card (Left Col - Span 4) -->
+<div class="col-span-1 lg:col-span-4 bg-gradient-to-br from-primary to-primary-container rounded-xl p-8 flex flex-col justify-between relative overflow-hidden shadow-[0_20px_40px_rgba(11,28,48,0.15)] text-on-primary min-h-[240px]">
+<div class="absolute top-0 right-0 p-4 opacity-10">
+<span class="material-symbols-outlined text-8xl">autorenew</span>
+</div>
+<div>
+<span class="font-label text-sm uppercase tracking-wider text-on-primary-container">Monthly Total</span>
+<h3 class="font-headline text-5xl font-extrabold mt-2">$342<span class="text-2xl text-on-primary-container font-medium">.50</span></h3>
+</div>
+<div class="mt-8 flex items-center gap-2 bg-white/10 w-fit px-3 py-1.5 rounded-full backdrop-blur-sm">
+<span class="material-symbols-outlined text-sm text-tertiary-fixed">trending_up</span>
+<span class="font-body text-xs text-white">+$12.00 from last month</span>
+</div>
+</div>
+<!-- AI Suggestions (Middle Col - Span 8) -->
+<div class="col-span-1 lg:col-span-8 bg-surface-container-lowest rounded-xl p-6 shadow-[0_10px_30px_rgba(11,28,48,0.04)] outline outline-1 outline-outline-variant/15 flex flex-col justify-between">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-tertiary-fixed-dim bg-surface-container-low p-1.5 rounded-lg">tips_and_updates</span>
+<h4 class="font-headline font-semibold text-primary">Pulse AI Insights</h4>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Insight 1 -->
+<div class="bg-surface-container-low rounded-lg p-4 flex gap-4 items-start border-l-2 border-secondary-container">
+<div class="mt-1">
+<span class="material-symbols-outlined text-secondary text-xl">warning</span>
+</div>
+<div>
+<h5 class="font-body font-medium text-sm text-primary mb-1">Price Increase Detected</h5>
+<p class="font-body text-xs text-on-surface-variant">Netflix Premium increased from $19.99 to $22.99 this month.</p>
+<button class="mt-3 text-xs font-semibold text-secondary hover:text-primary transition-colors">Review Plan</button>
+</div>
+</div>
+<!-- Insight 2 -->
+<div class="bg-surface-container-low rounded-lg p-4 flex gap-4 items-start border-l-2 border-tertiary-fixed-dim">
+<div class="mt-1">
+<span class="material-symbols-outlined text-tertiary-fixed-dim text-xl">visibility_off</span>
+</div>
+<div>
+<h5 class="font-body font-medium text-sm text-primary mb-1">Unused Subscription</h5>
+<p class="font-body text-xs text-on-surface-variant">You haven't logged into Adobe Creative Cloud in 45 days. Potential saving: $54.99/mo.</p>
+<button class="mt-3 text-xs font-semibold text-tertiary-fixed-dim hover:text-on-tertiary-container transition-colors">Cancel Service</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Calendar Timeline (Full Width) -->
+<div class="col-span-1 lg:col-span-12 bg-surface-container-lowest rounded-xl p-6 shadow-[0_10px_30px_rgba(11,28,48,0.04)] outline outline-1 outline-outline-variant/15 mt-2">
+<div class="flex justify-between items-center mb-6">
+<h4 class="font-headline font-semibold text-primary">Upcoming Payments</h4>
+<span class="font-label text-sm text-on-surface-variant">November 2023</span>
+</div>
+<div class="flex justify-between items-end gap-2 overflow-x-auto pb-4 hide-scrollbar">
+<!-- Timeline Items -->
+<div class="flex flex-col items-center gap-3 min-w-[60px]">
+<div class="font-body text-xs text-on-surface-variant">Nov 12</div>
+<div class="h-16 w-1 bg-surface-container-high rounded-full relative">
+<div class="absolute bottom-0 w-full bg-secondary-container rounded-full h-1/2"></div>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="text-xs font-bold text-secondary">S</span>
+</div>
+<div class="font-body text-xs font-medium text-primary">$10</div>
+</div>
+<div class="flex flex-col items-center gap-3 min-w-[60px]">
+<div class="font-body text-xs text-on-surface-variant">Nov 15</div>
+<div class="h-24 w-1 bg-surface-container-high rounded-full relative">
+<div class="absolute bottom-0 w-full bg-tertiary-fixed-dim rounded-full h-full"></div>
+</div>
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-[0_4px_10px_rgba(11,28,48,0.2)]">
+<span class="text-xs font-bold text-on-primary">N</span>
+</div>
+<div class="font-body text-xs font-medium text-primary">$23</div>
+</div>
+<div class="flex flex-col items-center gap-3 min-w-[60px]">
+<div class="font-body text-xs text-on-surface-variant">Nov 18</div>
+<div class="h-12 w-1 bg-surface-container-high rounded-full relative">
+<div class="absolute bottom-0 w-full bg-secondary-container rounded-full h-full"></div>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="text-xs font-bold text-secondary">A</span>
+</div>
+<div class="font-body text-xs font-medium text-primary">$15</div>
+</div>
+<div class="flex flex-col items-center gap-3 min-w-[60px]">
+<div class="font-body text-xs text-on-surface-variant">Nov 22</div>
+<div class="h-32 w-1 bg-surface-container-high rounded-full relative">
+<div class="absolute bottom-0 w-full bg-secondary-container rounded-full h-1/4"></div>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center opacity-50">
+<span class="text-xs font-bold text-secondary">G</span>
+</div>
+<div class="font-body text-xs font-medium text-on-surface-variant">$12</div>
+</div>
+</div>
+</div>
+<!-- Subscriptions List (Full Width) -->
+<div class="col-span-1 lg:col-span-12 bg-surface-container-lowest rounded-xl p-0 shadow-[0_10px_30px_rgba(11,28,48,0.04)] outline outline-1 outline-outline-variant/15 mt-2 overflow-hidden">
+<div class="p-6 border-b border-surface-container-low flex justify-between items-center bg-surface-bright/50">
+<h4 class="font-headline font-semibold text-primary">All Active Subscriptions</h4>
+<button class="text-sm font-medium text-secondary hover:text-primary flex items-center gap-1 transition-colors">
+                        Filter <span class="material-symbols-outlined text-sm">filter_list</span>
+</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface border-b border-surface-container-low">
+<th class="font-label text-xs font-medium text-on-surface-variant uppercase tracking-wider py-4 px-6">Service</th>
+<th class="font-label text-xs font-medium text-on-surface-variant uppercase tracking-wider py-4 px-6">Billing Cycle</th>
+<th class="font-label text-xs font-medium text-on-surface-variant uppercase tracking-wider py-4 px-6">Category</th>
+<th class="font-label text-xs font-medium text-on-surface-variant uppercase tracking-wider py-4 px-6 text-right">Amount</th>
+<th class="py-4 px-6"></th>
+</tr>
+</thead>
+<tbody class="font-body text-sm divide-y divide-surface-container-low/50">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="py-4 px-6 flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary font-bold">
+                                        N
+                                    </div>
+<div>
+<p class="font-medium text-primary">Netflix Premium</p>
+<p class="text-xs text-on-surface-variant mt-0.5">Renews Nov 15</p>
+</div>
+</td>
+<td class="py-4 px-6 text-on-surface-variant">Monthly</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-surface-container text-secondary">Entertainment</span>
+</td>
+<td class="py-4 px-6 text-right font-medium text-primary">$22.99</td>
+<td class="py-4 px-6 text-right">
+<button class="text-on-surface-variant hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="py-4 px-6 flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary font-bold">
+                                        S
+                                    </div>
+<div>
+<p class="font-medium text-primary">Spotify Duo</p>
+<p class="text-xs text-on-surface-variant mt-0.5">Renews Nov 12</p>
+</div>
+</td>
+<td class="py-4 px-6 text-on-surface-variant">Monthly</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-surface-container text-secondary">Entertainment</span>
+</td>
+<td class="py-4 px-6 text-right font-medium text-primary">$14.99</td>
+<td class="py-4 px-6 text-right">
+<button class="text-on-surface-variant hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="py-4 px-6 flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary font-bold">
+                                        A
+                                    </div>
+<div>
+<p class="font-medium text-primary">Adobe Creative Cloud</p>
+<p class="text-xs text-error mt-0.5">Action Needed</p>
+</div>
+</td>
+<td class="py-4 px-6 text-on-surface-variant">Annual</td>
+<td class="py-4 px-6">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-surface-container text-secondary">Software</span>
+</td>
+<td class="py-4 px-6 text-right font-medium text-primary">$54.99</td>
+<td class="py-4 px-6 text-right">
+<button class="text-on-surface-variant hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</body></html>

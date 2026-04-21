@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FinPulse - Insights</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@500;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-fixed-variant": "#3a485c",
+                      "tertiary-fixed": "#6ffbbe",
+                      "secondary-fixed": "#d5e3fd",
+                      "on-tertiary-fixed-variant": "#005236",
+                      "on-tertiary-fixed": "#002113",
+                      "on-surface-variant": "#45464d",
+                      "on-primary-container": "#7c839b",
+                      "error": "#ba1a1a",
+                      "outline-variant": "#c6c6cd",
+                      "error-container": "#ffdad6",
+                      "inverse-primary": "#bec6e0",
+                      "inverse-on-surface": "#eaf1ff",
+                      "surface-container": "#e5eeff",
+                      "primary-fixed": "#dae2fd",
+                      "on-primary-fixed-variant": "#3f465c",
+                      "secondary": "#515f74",
+                      "tertiary": "#000000",
+                      "tertiary-fixed-dim": "#4edea3",
+                      "surface-variant": "#d3e4fe",
+                      "on-tertiary-container": "#009668",
+                      "surface-dim": "#cbdbf5",
+                      "on-error-container": "#93000a",
+                      "surface-container-lowest": "#ffffff",
+                      "on-background": "#0b1c30",
+                      "on-primary-fixed": "#131b2e",
+                      "surface-container-high": "#dce9ff",
+                      "inverse-surface": "#213145",
+                      "surface-bright": "#f8f9ff",
+                      "secondary-fixed-dim": "#b9c7e0",
+                      "surface": "#f8f9ff",
+                      "secondary-container": "#d5e3fd",
+                      "primary": "#000000",
+                      "on-surface": "#0b1c30",
+                      "tertiary-container": "#002113",
+                      "surface-container-highest": "#d3e4fe",
+                      "outline": "#76777d",
+                      "on-secondary-fixed": "#0d1c2f",
+                      "on-secondary": "#ffffff",
+                      "primary-fixed-dim": "#bec6e0",
+                      "primary-container": "#131b2e",
+                      "on-secondary-container": "#57657b",
+                      "background": "#f8f9ff",
+                      "on-tertiary": "#ffffff",
+                      "surface-tint": "#565e74",
+                      "on-error": "#ffffff",
+                      "surface-container-low": "#eff4ff",
+                      "on-primary": "#ffffff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {},
+              "fontFamily": {
+                      "headline": [
+                              "Manrope"
+                      ],
+                      "body": [
+                              "Inter"
+                      ],
+                      "label": [
+                              "Inter"
+                      ]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined[data-weight="fill"] {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom Ambient Shadow from Design System */
+        .ambient-shadow {
+            box-shadow: 0 20px 40px rgba(11, 28, 48, 0.06);
+        }
+        .ghost-border {
+            box-shadow: inset 0 0 0 1px rgba(198, 198, 205, 0.15); /* outline-variant at 15% */
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body antialiased min-h-screen overflow-x-hidden">
+<!-- SideNavBar -->
+<nav class="h-screen w-64 fixed left-0 top-0 bg-slate-50 dark:bg-slate-900 flex flex-col py-8 px-6 z-50">
+<!-- Brand -->
+<div class="mb-10 flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-xl">pulse_alert</span>
+</div>
+<div>
+<h1 class="text-2xl font-bold font-headline tracking-tight text-black dark:text-white">FinPulse</h1>
+<p class="text-xs text-on-surface-variant font-label">Wealth Management</p>
+</div>
+</div>
+<!-- Navigation -->
+<ul class="flex-1 space-y-2">
+<li>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 dark:text-slate-400 font-medium font-body text-sm hover:text-black dark:hover:text-emerald-300 transition-colors scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                    Overview
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 dark:text-slate-400 font-medium font-body text-sm hover:text-black dark:hover:text-emerald-300 transition-colors scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+                    Activity
+                </a>
+</li>
+<!-- Active State -->
+<li>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-black dark:text-white font-bold border-r-2 border-black dark:border-emerald-400 font-body text-sm hover:text-black dark:hover:text-emerald-300 transition-colors scale-95 duration-150 bg-slate-100 dark:bg-slate-800" href="#">
+<span class="material-symbols-outlined" data-icon="insights" data-weight="fill">insights</span>
+                    Insights
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 dark:text-slate-400 font-medium font-body text-sm hover:text-black dark:hover:text-emerald-300 transition-colors scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+                    Subscriptions
+                </a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 dark:text-slate-400 font-medium font-body text-sm hover:text-black dark:hover:text-emerald-300 transition-colors scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+                    Budget
+                </a>
+</li>
+</ul>
+</nav>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 w-[calc(100%-16rem)] h-16 z-40 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md flex items-center justify-between px-8 border-b border-slate-100 dark:border-slate-800 shadow-sm dark:shadow-none transition-all duration-200">
+<!-- Search Bar (on_left) -->
+<div class="flex-1 max-w-md">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="w-full bg-transparent border-none focus:ring-0 pl-10 py-2 text-sm font-body text-black dark:text-white placeholder:text-slate-400 outline-none" placeholder="Search transactions, insights..." type="text"/>
+<div class="absolute bottom-0 left-0 w-full h-[1.5px] bg-outline-variant/20 group-focus-within:bg-primary transition-colors"></div>
+</div>
+</div>
+<!-- Trailing Actions -->
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-lg transition-all duration-200">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-lg transition-all duration-200">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-highest border border-outline-variant/20 ml-2 cursor-pointer">
+<img alt="User Profile Avatar" class="w-full h-full object-cover" data-alt="close-up portrait of a professional man in soft natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDFQYVvwGdvFqBmNxASw8DR0EqQTe9mgf2lkSqFQswk6xfsIkUoWPgxrqsiIln6HbMWgoeLnfG0AHgj5gbmggU92bH5gHMatXVXnUTIcTgn3H82w6-0mMejNYfJ2xMrrhCrmYUDbW3g2YkrxmQmO8-klNQ0Wg1pIZaSXqyheEAeR7Fe9jOMzv0g_j82kF46UYPOMO09nF3jyCAVjLxfoDVFGKsrRV5UubLHa3CfiBZ6y5L59-qgeHnkOm3AHBP_-qmZgLGOCbNohg"/>
+</div>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="ml-64 mt-16 p-8 lg:p-12 min-h-[calc(100vh-4rem)] bg-background">
+<!-- Header Section -->
+<div class="mb-10 max-w-4xl">
+<h2 class="text-[3.5rem] leading-none font-headline font-bold text-on-surface tracking-tight mb-4">Intelligence Hub</h2>
+<p class="text-lg text-on-surface-variant font-body">Synthesizing your financial vectors into actionable foresight.</p>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Horizon Forecast (Col Span 2) -->
+<section class="lg:col-span-2 bg-surface-container-lowest rounded-xl p-8 ambient-shadow ghost-border relative overflow-hidden flex flex-col">
+<div class="flex justify-between items-start mb-8 z-10">
+<div>
+<h3 class="text-xl font-headline font-semibold text-on-surface">Horizon Forecast</h3>
+<p class="text-sm text-on-surface-variant mt-1">90-Day Liquidity Projection</p>
+</div>
+<div class="bg-surface-container px-3 py-1.5 rounded-full flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-tertiary-fixed"></div>
+<span class="text-xs font-semibold text-on-surface uppercase tracking-wider">Optimal</span>
+</div>
+</div>
+<!-- Abstract Data Viz Area -->
+<div class="flex-1 min-h-[240px] relative z-10 flex flex-col justify-end">
+<!-- Faux Grid Lines -->
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-30">
+<div class="border-b border-outline-variant h-0"></div>
+<div class="border-b border-outline-variant h-0"></div>
+<div class="border-b border-outline-variant h-0"></div>
+<div class="border-b border-outline-variant h-0"></div>
+</div>
+<!-- Faux Chart Line (CSS SVG trick or just a styled div path conceptually) -->
+<div class="w-full h-32 relative">
+<!-- Growth Line -->
+<div class="absolute bottom-4 left-0 w-full h-[3px] bg-tertiary-fixed-dim rounded-full" style="clip-path: polygon(0 80%, 20% 60%, 40% 70%, 60% 40%, 80% 50%, 100% 10%);"></div>
+<!-- Glow -->
+<div class="absolute bottom-4 left-0 w-full h-[3px] bg-tertiary-fixed-dim rounded-full shadow-[0_0_15px_rgba(78,222,163,0.5)]" style="clip-path: polygon(0 80%, 20% 60%, 40% 70%, 60% 40%, 80% 50%, 100% 10%);"></div>
+</div>
+<!-- X Axis Labels -->
+<div class="flex justify-between text-xs text-on-surface-variant font-label mt-4">
+<span>Today</span>
+<span>+30 Days</span>
+<span>+60 Days</span>
+<span>+90 Days</span>
+</div>
+</div>
+</section>
+<!-- Vector Analysis (Col Span 1) -->
+<section class="bg-surface-container-low rounded-xl p-8 flex flex-col gap-6">
+<h3 class="text-lg font-headline font-semibold text-on-surface">Vector Analysis</h3>
+<div class="flex flex-col gap-4">
+<!-- Warning Card -->
+<div class="bg-secondary-container p-4 rounded-xl ghost-border flex gap-4 items-start">
+<span class="material-symbols-outlined text-secondary mt-0.5">warning</span>
+<div>
+<h4 class="text-sm font-semibold text-on-secondary-container">Cash-Flow Anomaly</h4>
+<p class="text-xs text-secondary mt-1 leading-relaxed">Recurring subscription spend in 'Entertainment' is up 14% this month.</p>
+</div>
+</div>
+<!-- Insight Card -->
+<div class="bg-surface-container-lowest p-4 rounded-xl ghost-border flex gap-4 items-start ambient-shadow">
+<span class="material-symbols-outlined text-on-tertiary-container mt-0.5">trending_up</span>
+<div>
+<h4 class="text-sm font-semibold text-on-surface">Saving Velocity</h4>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">You are on track to hit your Q3 liquidity target 12 days early.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Tactical Interventions -->
+<section class="lg:col-span-1 bg-primary text-on-primary rounded-xl p-8 relative overflow-hidden flex flex-col justify-between">
+<!-- Silk Sheen Gradient -->
+<div class="absolute inset-0 bg-gradient-to-br from-primary to-primary-container opacity-80 pointer-events-none"></div>
+<div class="relative z-10">
+<span class="material-symbols-outlined text-3xl mb-4 text-tertiary-fixed">target</span>
+<h3 class="text-xl font-headline font-semibold mb-2">Tactical Interventions</h3>
+<p class="text-sm text-on-primary-container font-body leading-relaxed mb-8">Execute recommended transfers to optimize yield across accounts.</p>
+</div>
+<button class="relative z-10 w-full bg-surface-container-lowest text-primary py-3 px-4 rounded-xl text-sm font-semibold hover:bg-surface-bright transition-colors flex items-center justify-center gap-2">
+                    Review Actions
+                    <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</section>
+<!-- Scenario Modeling -->
+<section class="lg:col-span-2 bg-surface-container-lowest rounded-xl p-8 ambient-shadow ghost-border">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-on-surface-variant">tune</span>
+<h3 class="text-lg font-headline font-semibold text-on-surface">Scenario Modeling</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<!-- Inputs -->
+<div class="space-y-6">
+<div>
+<label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Simulated Major Purchase</label>
+<input class="w-full bg-transparent border-0 border-b-[1.5px] border-outline-variant/30 focus:border-primary focus:ring-0 px-0 py-2 text-xl font-headline text-on-surface placeholder:text-outline-variant transition-colors" placeholder="$0.00" type="text"/>
+</div>
+<div>
+<label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Timeline Adjustment</label>
+<select class="w-full bg-transparent border-0 border-b-[1.5px] border-outline-variant/30 focus:border-primary focus:ring-0 px-0 py-2 text-base font-body text-on-surface transition-colors">
+<option>Current Month</option>
+<option>Next 3 Months</option>
+<option>End of Year</option>
+</select>
+</div>
+</div>
+<!-- Output Area -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col justify-center border border-outline-variant/10">
+<p class="text-sm text-on-surface-variant font-label mb-2">Projected Impact on Liquidity</p>
+<div class="text-3xl font-headline font-bold text-on-surface mb-2">- $12,450.00</div>
+<p class="text-xs text-secondary font-label flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">info</span>
+                            Maintains core reserves above threshold.
+                        </p>
+</div>
+</div>
+</section>
+</div>
+</main>
+</body></html>

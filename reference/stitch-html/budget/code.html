@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FinPulse - Budget</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary-container": "#131b2e",
+                        "outline": "#76777d",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "surface-container-low": "#eff4ff",
+                        "tertiary-fixed": "#6ffbbe",
+                        "secondary-fixed": "#d5e3fd",
+                        "inverse-surface": "#213145",
+                        "surface": "#f8f9ff",
+                        "tertiary-container": "#002113",
+                        "on-background": "#0b1c30",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "on-error-container": "#93000a",
+                        "surface-bright": "#f8f9ff",
+                        "on-tertiary-fixed": "#002113",
+                        "surface-container": "#e5eeff",
+                        "surface-container-high": "#dce9ff",
+                        "primary-fixed-dim": "#bec6e0",
+                        "on-tertiary-container": "#009668",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#0d1c2f",
+                        "surface-container-highest": "#d3e4fe",
+                        "secondary": "#515f74",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "tertiary": "#000000",
+                        "error": "#ba1a1a",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-primary-fixed-variant": "#3f465c",
+                        "secondary-fixed-dim": "#b9c7e0",
+                        "on-secondary-container": "#57657b",
+                        "on-secondary-fixed-variant": "#3a485c",
+                        "inverse-primary": "#bec6e0",
+                        "on-primary": "#ffffff",
+                        "on-surface-variant": "#45464d",
+                        "error-container": "#ffdad6",
+                        "primary": "#000000",
+                        "on-surface": "#0b1c30",
+                        "primary-fixed": "#dae2fd",
+                        "background": "#f8f9ff",
+                        "on-primary-container": "#7c839b",
+                        "secondary-container": "#d5e3fd",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#c6c6cd",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-tint": "#565e74",
+                        "on-primary-fixed": "#131b2e",
+                        "surface-dim": "#cbdbf5"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .fill-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+        .silk-gradient {
+            background: linear-gradient(135deg, #000000 0%, #131b2e 100%);
+        }
+        .progress-bar-track {
+            background-color: #dce9ff; /* surface-container-high */
+        }
+        .progress-bar-fill {
+            background: linear-gradient(90deg, #6ffbbe 0%, #4edea3 100%); /* tertiary-fixed to dim */
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body antialiased pb-24 md:pb-0 pt-16 md:pt-20">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#f8f9ff]/80 dark:bg-[#0b1c30]/80 backdrop-blur-md shadow-[0_20px_40px_rgba(11,28,48,0.06)] no-border tonal-shift bg-[#eff4ff] dark:bg-[#131b2e] flex justify-between items-center px-6 h-16">
+<div class="flex items-center gap-4">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-highest">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="Close up portrait of a young professional in a sharp navy suit against a soft gray studio background, authoritative but approachable lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3Q2RtehOsyEtbZAOxvQ2p74NdHlEPWe0ck3zWdjkn7KmsowlvtvZlfH9V5yQum9exvqjU41wNtwWKy-6cjvcltSMuAfw-COv5blDVoYJieEF7pbp1gdPon2S4ntqbV6IrjaB76nCb7VC5neUE_Ums_-G0Wa-kbKeotbPTnNd5FsVb-fR5fzhLMtxKWIXlCVa_yhKaBEZA5sJtqBGg6dKsYafEoHc1FxRdHI75sp23rh4n6sPAlHsSFjcpB1s_3XnyJPEIRn_10Q"/>
+</div>
+<span class="text-xl font-manrope font-extrabold text-[#000000] dark:text-[#ffffff]">FinPulse</span>
+</div>
+<!-- Desktop Nav items -->
+<nav class="hidden md:flex items-center gap-8 font-inter text-[10px] font-medium uppercase tracking-widest">
+<a class="text-[#45464d] dark:text-[#c6c6cd] hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] transition-colors px-3 py-2 rounded-xl" href="#">Overview</a>
+<a class="text-[#45464d] dark:text-[#c6c6cd] hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] transition-colors px-3 py-2 rounded-xl" href="#">Activity</a>
+<a class="text-[#45464d] dark:text-[#c6c6cd] hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] transition-colors px-3 py-2 rounded-xl" href="#">Insights</a>
+<a class="text-[#45464d] dark:text-[#c6c6cd] hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] transition-colors px-3 py-2 rounded-xl" href="#">Subs</a>
+<a class="text-[#009668] font-bold bg-[#dce9ff] dark:bg-[#1e293b] transition-colors px-3 py-2 rounded-xl flex items-center gap-2" href="#">Budget</a>
+</nav>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#dce9ff] dark:hover:bg-[#1e293b] transition-colors active:scale-95 duration-200 text-[#000000] dark:text-[#ffffff]">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</header>
+<!-- Main Content -->
+<main class="max-w-7xl mx-auto px-4 md:px-8 py-8 flex flex-col gap-12">
+<!-- Hero Summary Section -->
+<section class="flex flex-col md:flex-row gap-8 items-start">
+<div class="flex-1 w-full flex flex-col gap-6">
+<h1 class="font-headline text-4xl md:text-5xl font-extrabold text-on-surface tracking-tight">Monthly Budget</h1>
+<p class="font-body text-secondary text-sm md:text-base max-w-md leading-relaxed">
+                    You have <span class="text-on-surface font-semibold">$1,240.00</span> left for the remaining 12 days of October. Your spending pace is on track.
+                </p>
+</div>
+<!-- Overall Progress Widget -->
+<div class="w-full md:w-auto min-w-[300px] bg-surface-container-lowest rounded-xl p-6 shadow-[0_20px_40px_rgba(11,28,48,0.06)] flex flex-col gap-4">
+<div class="flex justify-between items-baseline">
+<span class="font-label text-sm text-on-surface-variant font-medium">Total Spent</span>
+<span class="font-headline text-2xl font-bold text-on-surface">$3,760</span>
+</div>
+<div class="w-full h-3 rounded-full progress-bar-track overflow-hidden relative">
+<div class="h-full rounded-full progress-bar-fill absolute left-0 top-0" style="width: 75%;"></div>
+</div>
+<div class="flex justify-between items-center text-xs font-label">
+<span class="text-secondary">75% of $5,000 Budget</span>
+<span class="text-on-tertiary-container font-semibold">Safe Zone</span>
+</div>
+</div>
+</section>
+<!-- Category Budgets Grid -->
+<section class="flex flex-col gap-6">
+<div class="flex justify-between items-center">
+<h2 class="font-headline text-2xl font-bold text-on-surface tracking-tight">Category Budgets</h2>
+<button class="bg-primary text-on-primary rounded-xl px-4 py-2 font-body text-sm font-semibold hover:bg-on-surface transition-colors active:scale-95">Add Category</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Category Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_20px_40px_rgba(11,28,48,0.06)] flex flex-col gap-5 hover:bg-surface-container-low transition-colors duration-300">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined fill-icon text-xl">shopping_cart</span>
+</div>
+<div>
+<h3 class="font-headline font-semibold text-on-surface text-lg">Groceries</h3>
+<p class="font-label text-xs text-on-surface-variant">Daily essentials</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant hover:text-on-surface cursor-pointer transition-colors">more_vert</span>
+</div>
+<div class="flex flex-col gap-2 mt-2">
+<div class="flex justify-between items-end">
+<div class="flex flex-col">
+<span class="font-headline text-xl font-bold text-on-surface">$450</span>
+<span class="font-label text-xs text-secondary">of $600</span>
+</div>
+<span class="font-label text-sm text-on-tertiary-container font-semibold bg-tertiary-fixed/20 px-2 py-1 rounded-lg">$150 left</span>
+</div>
+<div class="w-full h-2 rounded-full progress-bar-track overflow-hidden mt-1">
+<div class="h-full rounded-full progress-bar-fill" style="width: 75%;"></div>
+</div>
+<span class="font-label text-[10px] text-secondary text-right mt-1">Projected to finish at $580</span>
+</div>
+</div>
+<!-- Category Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_20px_40px_rgba(11,28,48,0.06)] flex flex-col gap-5 hover:bg-surface-container-low transition-colors duration-300">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined fill-icon text-xl">restaurant</span>
+</div>
+<div>
+<h3 class="font-headline font-semibold text-on-surface text-lg">Dining Out</h3>
+<p class="font-label text-xs text-on-surface-variant">Restaurants &amp; cafes</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant hover:text-on-surface cursor-pointer transition-colors">more_vert</span>
+</div>
+<div class="flex flex-col gap-2 mt-2">
+<div class="flex justify-between items-end">
+<div class="flex flex-col">
+<span class="font-headline text-xl font-bold text-error">$320</span>
+<span class="font-label text-xs text-secondary">of $300</span>
+</div>
+<span class="font-label text-sm text-error font-semibold bg-error-container/50 px-2 py-1 rounded-lg">Over by $20</span>
+</div>
+<div class="w-full h-2 rounded-full progress-bar-track overflow-hidden mt-1">
+<div class="h-full rounded-full bg-error" style="width: 100%;"></div>
+</div>
+<span class="font-label text-[10px] text-secondary text-right mt-1">Consider cutting back</span>
+</div>
+</div>
+<!-- Category Card 3 -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_20px_40px_rgba(11,28,48,0.06)] flex flex-col gap-5 hover:bg-surface-container-low transition-colors duration-300">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined fill-icon text-xl">directions_car</span>
+</div>
+<div>
+<h3 class="font-headline font-semibold text-on-surface text-lg">Transport</h3>
+<p class="font-label text-xs text-on-surface-variant">Gas &amp; transit</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant hover:text-on-surface cursor-pointer transition-colors">more_vert</span>
+</div>
+<div class="flex flex-col gap-2 mt-2">
+<div class="flex justify-between items-end">
+<div class="flex flex-col">
+<span class="font-headline text-xl font-bold text-on-surface">$80</span>
+<span class="font-label text-xs text-secondary">of $200</span>
+</div>
+<span class="font-label text-sm text-on-tertiary-container font-semibold bg-tertiary-fixed/20 px-2 py-1 rounded-lg">$120 left</span>
+</div>
+<div class="w-full h-2 rounded-full progress-bar-track overflow-hidden mt-1">
+<div class="h-full rounded-full progress-bar-fill" style="width: 40%;"></div>
+</div>
+<span class="font-label text-[10px] text-secondary text-right mt-1">Projected to finish at $150</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Project-Based Budgets -->
+<section class="flex flex-col gap-6 mt-4">
+<h2 class="font-headline text-2xl font-bold text-on-surface tracking-tight">Project Budgets</h2>
+<!-- Project Card -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(11,28,48,0.06)] flex flex-col md:flex-row">
+<!-- Project Image/Identity -->
+<div class="w-full md:w-1/3 h-48 md:h-auto relative">
+<img alt="NYC Trip" class="w-full h-full object-cover" data-alt="Wide shot of New York City skyline at dusk with lights beginning to twinkle, warm sunset hues fading into deep blue sky, editorial style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQz-pf99EOAqgdDXF5Re7C6K4_c9B73qXlHpWTcSNVTK51rUC40y-Eq_qqd1525b4CwdBvL-pq2E_5MXiubqYNyu28ai3uYX4yB70GWMMe-vJdTBn8CI61PVR-J0Xmk5ygKTCT53H4FTA6jRqhGYpYaMB7NRPgd3CLZPZa-qOeofXlYFlPVwQwGv6LkGurluO3s-0aRY65-6jEZbjB9o1nWj87nrqagQNxDdpeDo9Q9siYLBjDUaYNfb_ovImWTKfITZByCRzhRA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent flex flex-col justify-end p-6">
+<span class="font-label text-[10px] font-bold uppercase tracking-widest text-tertiary-fixed mb-1">Upcoming</span>
+<h3 class="font-headline text-2xl font-bold text-on-primary">NYC Trip Budget</h3>
+</div>
+</div>
+<!-- Project Details -->
+<div class="flex-1 p-6 flex flex-col gap-6 justify-center">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div class="flex flex-col gap-1">
+<span class="font-label text-sm text-on-surface-variant font-medium">Total Saved</span>
+<div class="flex items-baseline gap-2">
+<span class="font-headline text-3xl font-extrabold text-on-surface">$1,200</span>
+<span class="font-body text-sm text-secondary">/ $2,500 Goal</span>
+</div>
+</div>
+<button class="bg-secondary-container text-on-secondary-container rounded-xl px-4 py-2 font-body text-sm font-semibold hover:bg-surface-variant transition-colors self-start md:self-auto">Manage Fund</button>
+</div>
+<div class="w-full h-3 rounded-full progress-bar-track overflow-hidden">
+<div class="h-full rounded-full progress-bar-fill relative" style="width: 48%;">
+<div class="absolute inset-0 bg-white/20 w-1/2"></div> <!-- Sub-goal indicator -->
+</div>
+</div>
+<!-- Mini Breakdown -->
+<div class="grid grid-cols-3 gap-4 pt-4 border-t border-surface-container-high/50">
+<div class="flex flex-col gap-1">
+<span class="font-label text-xs text-secondary">Flights</span>
+<span class="font-headline text-sm font-semibold text-on-surface">$400 <span class="text-xs text-outline-variant font-normal">est.</span></span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label text-xs text-secondary">Hotel</span>
+<span class="font-headline text-sm font-semibold text-on-surface">$900 <span class="text-xs text-outline-variant font-normal">est.</span></span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label text-xs text-secondary">Spending</span>
+<span class="font-headline text-sm font-semibold text-on-surface">$1,200 <span class="text-xs text-outline-variant font-normal">est.</span></span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="md:hidden bg-[#f8f9ff]/90 dark:bg-[#0b1c30]/90 backdrop-blur-xl fixed bottom-0 w-full z-50 pb-safe no-border tonal-layering shadow-[0_-10px_30px_rgba(11,28,48,0.04)] flex justify-around items-center h-20 px-4">
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-[24px]">dashboard</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest mt-1">Overview</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-[24px]">receipt_long</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest mt-1">Activity</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-[24px]">insights</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest mt-1">Insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#45464d] dark:text-[#c6c6cd] px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-[24px]">subscriptions</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest mt-1">Subs</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#000000] dark:text-[#6ffbbe] bg-[#d3e4fe]/50 dark:bg-[#131b2e] rounded-xl px-3 py-1 hover:text-[#009668] transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined text-[24px] fill-icon">account_balance_wallet</span>
+<span class="font-inter text-[10px] font-medium uppercase tracking-widest mt-1">Budget</span>
+</a>
+</nav>
+</body></html>
