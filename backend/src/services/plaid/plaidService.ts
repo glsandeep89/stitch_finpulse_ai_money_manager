@@ -50,6 +50,16 @@ function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
+/** SimpleFIN `GET /accounts?version=2` requires `start-date` / `end-date` as Unix epoch seconds (integer), not YYYY-MM-DD. */
+function unixStartOfUtcDaySec(d: Date): string {
+  return String(Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 1000));
+}
+
+/** Protocol: `end-date` is exclusive (transactions strictly before this instant). Use first second after UTC calendar day `d`. */
+function unixExclusiveEndAfterUtcDaySec(d: Date): string {
+  return String(Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) / 1000));
+}
+
 function parsePosted(v: unknown): string {
   if (typeof v === "number" && Number.isFinite(v)) {
     const ms = v > 1e12 ? v : v * 1000;
@@ -263,9 +273,9 @@ export async function exchangePublicToken(userId: string, publicToken: string) {
   const start = new Date(end.getTime() - 89 * 86400000);
   const payload = await simplefinGetAccounts(accessUrl, {
     version: "2",
-    "start-date": ymd(start),
-    "end-date": ymd(end),
-    pending: "true",
+    "start-date": unixStartOfUtcDaySec(start),
+    "end-date": unixExclusiveEndAfterUtcDaySec(end),
+    pending: "1",
   });
 
   let count = 0;
@@ -305,8 +315,8 @@ export async function refreshAccountsFromPlaid(userId: string) {
     const accessUrl = item.access_token as string;
     const payload = await simplefinGetAccounts(accessUrl, {
       version: "2",
-      "start-date": ymd(start),
-      "end-date": ymd(end),
+      "start-date": unixStartOfUtcDaySec(start),
+      "end-date": unixExclusiveEndAfterUtcDaySec(end),
     });
     for (const acc of payload.accounts ?? []) {
       const accountId = stableAccountId(acc);
@@ -345,9 +355,9 @@ export async function syncTransactionsForUser(userId: string) {
     }
     const payload = await simplefinGetAccounts(accessUrl, {
       version: "2",
-      "start-date": ymd(start),
-      "end-date": endStr,
-      pending: "true",
+      "start-date": unixStartOfUtcDaySec(start),
+      "end-date": unixExclusiveEndAfterUtcDaySec(end),
+      pending: "1",
     });
 
     await upsertTransactionsFromPayload(userId, item.id as string, item.item_id as string, payload);
