@@ -63,6 +63,28 @@ $requiredWeb = @("VITE_API_URL", "VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY")
 foreach ($svc in $finpulse) {
   Write-Host ""
   Write-Host "=== $($svc.name) ($($svc.type)) [$($svc.id)] ===" -ForegroundColor Cyan
+
+  if ($svc.name -eq "finpulse-api") {
+    try {
+      $deploys = Invoke-RestMethod -Uri "$base/services/$($svc.id)/deploys?limit=1" -Headers $headers -Method Get
+      $d0 = $null
+      if ($null -ne $deploys.deploys) {
+        $arr = @($deploys.deploys)
+        if ($arr.Count -gt 0) { $d0 = $arr[0] }
+      }
+      elseif ($null -ne $deploys.deploy) { $d0 = $deploys.deploy }
+      elseif ($deploys -is [System.Array] -and $deploys.Count -gt 0) { $d0 = $deploys[0] }
+      if ($d0) {
+        $commit = $d0.commit.id
+        $status = $d0.status
+        $finished = $d0.finishedAt
+        Write-Host ("  latest deploy: status={0} commit={1} finishedAt={2}" -f $status, $commit, $finished) -ForegroundColor DarkGray
+      }
+    } catch {
+      Write-Host "  (could not read deploys: $_)" -ForegroundColor DarkGray
+    }
+  }
+
   try {
     $ev = Invoke-RestMethod -Uri "$base/services/$($svc.id)/env-vars?limit=100" -Headers $headers -Method Get
   } catch {
@@ -108,6 +130,21 @@ foreach ($svc in $finpulse) {
         Write-Host ("  {0,-40} {1}" -f $r, "(MISSING)") -ForegroundColor Red
       }
     }
+  }
+}
+
+Write-Host ""
+if (Test-Path (Join-Path $root ".git")) {
+  Push-Location $root
+  try {
+    $head = git rev-parse HEAD 2>$null
+    $short = git rev-parse --short HEAD 2>$null
+    if ($head) {
+      Write-Host "Local repo HEAD: $head ($short)" -ForegroundColor DarkGray
+      Write-Host "  finpulse-api on Render should show the same commit after deploy (SimpleFIN claim/auth fixes)." -ForegroundColor DarkGray
+    }
+  } finally {
+    Pop-Location
   }
 }
 

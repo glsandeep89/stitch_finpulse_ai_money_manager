@@ -90,21 +90,53 @@ function normalizeSfinUrl(text: string): string {
 }
 
 /**
+ * Same as SimpleFIN Bridge Python sample: split userinfo on first `:`, host/path on first `@`.
+ * Fallback when `new URL()` fails or drops credentials for unusual encodings.
+ */
+function parseSfinAccessPythonStyle(accessUrl: string): { baseUrl: string; user: string; pass: string } | null {
+  const raw = normalizeSfinUrl(accessUrl);
+  const schemeSep = raw.indexOf("//");
+  if (schemeSep < 0) return null;
+  const scheme = raw.slice(0, schemeSep + 2);
+  const afterScheme = raw.slice(schemeSep + 2);
+  const at = afterScheme.indexOf("@");
+  if (at < 0) return null;
+  const auth = afterScheme.slice(0, at);
+  const hostPath = afterScheme.slice(at + 1);
+  const colon = auth.indexOf(":");
+  if (colon < 0) return null;
+  const user = auth.slice(0, colon);
+  const pass = auth.slice(colon + 1);
+  if (!user || !pass) return null;
+  const slash = hostPath.indexOf("/");
+  const hostOnly = slash < 0 ? hostPath : hostPath.slice(0, slash);
+  const pathSuffix = slash < 0 ? "" : hostPath.slice(slash).replace(/\/$/, "");
+  const baseUrl = `${scheme}${hostOnly}${pathSuffix}`;
+  return { baseUrl, user, pass };
+}
+
+/**
  * Split stored access URL into origin+path prefix and Basic credentials.
- * Do not decodeURIComponent `username`/`password` — the WHATWG URL parser already decoded once;
- * double-decoding breaks passwords that contain `%`.
+ * Prefer WHATWG `URL` (correct percent-decoding). Fall back to Python-style split on first `@` / first `:`
+ * so passwords containing `:` match the Bridge developer guide sample.
  */
 function parseSfinAccessForApi(accessUrl: string): { baseUrl: string; user: string; pass: string } {
   const raw = normalizeSfinUrl(accessUrl);
-  const u = new URL(raw);
-  const user = u.username;
-  const pass = u.password;
-  if (!user || !pass) {
-    throw new Error("SimpleFIN access URL is missing credentials.");
+  try {
+    const u = new URL(raw);
+    const user = u.username;
+    const pass = u.password;
+    if (user && pass) {
+      const pathPrefix = u.pathname.replace(/\/$/, "");
+      const baseUrl = `${u.protocol}//${u.host}${pathPrefix}`;
+      return { baseUrl, user, pass };
+    }
+  } catch {
+    /* use fallback */
   }
-  const pathPrefix = u.pathname.replace(/\/$/, "");
-  const baseUrl = `${u.protocol}//${u.host}${pathPrefix}`;
-  return { baseUrl, user, pass };
+  const fb = parseSfinAccessPythonStyle(accessUrl);
+  if (fb) return fb;
+  throw new Error("SimpleFIN access URL is missing credentials or could not be parsed.");
 }
 
 async function simplefinGetAccounts(
@@ -307,6 +339,9 @@ async function upsertTransactionsFromPayload(
  */
 export async function exchangePublicToken(userId: string, publicToken: string) {
   const accessUrl = await claimSimplefinSetupToken(publicToken);
+  /** Same as beta guide `curl -L "${ACCESS_URL}/accounts?version=2"` — validates Basic auth before DB write. */
+  await simplefinGetAccounts(accessUrl, { version: "2" });
+
   const itemKey = `simplefin-${crypto.randomUUID()}`;
 
   const sb = getDb();
