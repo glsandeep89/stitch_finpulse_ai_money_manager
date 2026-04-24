@@ -5,20 +5,20 @@ import { scopeMiddleware } from "../middleware/scopeMiddleware.js";
 import {
   getSimplefinConnectInfo,
   exchangePublicToken,
-  refreshAccountsFromPlaid,
+  refreshAccountsFromSimplifin,
   syncTransactionsForUser,
   getIdentityForUser,
   getInvestmentsForUser,
-  listPlaidItemsForUser,
-  unlinkPlaidItemForUser,
-} from "../services/plaid/plaidService.js";
+  listSimplifinItemsForUser,
+  unlinkSimplifinItemForUser,
+} from "../services/simplifin/simplifinService.js";
 import { getDb } from "../services/db/supabase.js";
 
-export const plaidRouter = Router();
-plaidRouter.use(authMiddleware);
-plaidRouter.use(scopeMiddleware);
+export const simplifinRouter = Router();
+simplifinRouter.use(authMiddleware);
+simplifinRouter.use(scopeMiddleware);
 
-plaidRouter.post("/create_link_token", async (_req, res) => {
+simplifinRouter.post("/create_link_token", async (_req, res) => {
   try {
     res.json(getSimplefinConnectInfo());
   } catch (e: unknown) {
@@ -27,7 +27,7 @@ plaidRouter.post("/create_link_token", async (_req, res) => {
   }
 });
 
-plaidRouter.post("/exchange_public_token", async (req, res) => {
+simplifinRouter.post("/exchange_public_token", async (req, res) => {
   try {
     const schema = z
       .object({
@@ -48,13 +48,13 @@ plaidRouter.post("/exchange_public_token", async (req, res) => {
   }
 });
 
-plaidRouter.get("/accounts", async (req, res) => {
+simplifinRouter.get("/accounts", async (req, res) => {
   try {
     const userId = req.userId!;
     const ids = req.effectiveUserIds ?? [userId];
     const refresh = req.query.refresh === "true";
     if (refresh) {
-      const out = await refreshAccountsFromPlaid(userId);
+      const out = await refreshAccountsFromSimplifin(userId);
       return res.json(out);
     }
     const sb = getDb();
@@ -70,7 +70,7 @@ plaidRouter.get("/accounts", async (req, res) => {
   }
 });
 
-plaidRouter.post("/transactions/sync", async (req, res) => {
+simplifinRouter.post("/transactions/sync", async (req, res) => {
   try {
     const userId = req.userId!;
     const out = await syncTransactionsForUser(userId);
@@ -81,7 +81,7 @@ plaidRouter.post("/transactions/sync", async (req, res) => {
   }
 });
 
-plaidRouter.get("/identity", async (req, res) => {
+simplifinRouter.get("/identity", async (req, res) => {
   try {
     const userId = req.userId!;
     const out = await getIdentityForUser(userId);
@@ -92,7 +92,7 @@ plaidRouter.get("/identity", async (req, res) => {
   }
 });
 
-plaidRouter.get("/investments", async (req, res) => {
+simplifinRouter.get("/investments", async (req, res) => {
   try {
     const userId = req.userId!;
     const out = await getInvestmentsForUser(userId);
@@ -103,10 +103,10 @@ plaidRouter.get("/investments", async (req, res) => {
   }
 });
 
-plaidRouter.get("/items", async (req, res) => {
+simplifinRouter.get("/items", async (req, res) => {
   try {
     const userId = req.userId!;
-    const items = await listPlaidItemsForUser(userId);
+    const items = await listSimplifinItemsForUser(userId);
     res.json({ items });
   } catch (e: unknown) {
     const err = e as Error;
@@ -114,16 +114,21 @@ plaidRouter.get("/items", async (req, res) => {
   }
 });
 
-plaidRouter.post("/unlink-item", async (req, res) => {
+simplifinRouter.post("/unlink-item", async (req, res) => {
   try {
     const body = z
       .object({
-        plaidItemId: z.string().uuid(),
+        plaidItemId: z.string().uuid().optional(),
+        simplifinItemId: z.string().uuid().optional(),
         deleteHistory: z.boolean().default(false),
       })
+      .refine((b) => Boolean(b.plaidItemId || b.simplifinItemId), {
+        message: "Provide simplifinItemId or legacy plaidItemId (same UUID).",
+      })
       .parse(req.body ?? {});
+    const itemId = body.simplifinItemId ?? body.plaidItemId!;
     const userId = req.userId!;
-    const out = await unlinkPlaidItemForUser(userId, body.plaidItemId, body.deleteHistory);
+    const out = await unlinkSimplifinItemForUser(userId, itemId, body.deleteHistory);
     res.json(out);
   } catch (e: unknown) {
     const err = e as Error;

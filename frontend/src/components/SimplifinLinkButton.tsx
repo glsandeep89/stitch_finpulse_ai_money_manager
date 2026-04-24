@@ -13,11 +13,8 @@ function hintForApiFailure(message: string): string | null {
   ].join(" ");
 }
 
-/**
- * Connects accounts via SimpleFIN Bridge (setup token pasted once).
- * Kept export name `PlaidLinkButton` to avoid churn across pages.
- */
-export function PlaidLinkButton({ onLinked }: { onLinked?: () => void }) {
+/** Connects accounts via SimpleFIN Bridge (setup token pasted once). */
+export function SimplifinLinkButton({ onLinked }: { onLinked?: () => void }) {
   const { session } = useAuth();
   const [open, setOpen] = useState(false);
   const [setupToken, setSetupToken] = useState("");

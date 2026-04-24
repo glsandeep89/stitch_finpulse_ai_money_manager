@@ -3,7 +3,7 @@ import { cronAuth } from "../middleware/auth.js";
 import { syncTransactionsAllUsers } from "../jobs/syncTransactions.js";
 import { computeAndStoreNetWorth } from "../jobs/networthSnapshot.js";
 import { authMiddleware } from "../middleware/auth.js";
-import { syncTransactionsForUser } from "../services/plaid/plaidService.js";
+import { syncTransactionsForUser } from "../services/simplifin/simplifinService.js";
 import { refreshAiPipeline } from "../services/ai/aiRefresh.js";
 import { getDb } from "../services/db/supabase.js";
 

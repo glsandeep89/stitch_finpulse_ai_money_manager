@@ -26,7 +26,7 @@ export default function Settings() {
   const [ok, setOk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showAdvancedNav, setShowAdvancedNav] = useState(readShowAdvancedDefault);
-  const [plaidItems, setPlaidItems] = useState<
+  const [simplifinItems, setSimplifinItems] = useState<
     {
       id: string;
       item_id: string;
@@ -73,10 +73,10 @@ export default function Settings() {
       }>("/plaid/items", {
         accessToken: session.access_token,
       }).catch(() => ({ items: [] }));
-      setPlaidItems(linked.items ?? []);
+      setSimplifinItems(linked.items ?? []);
     } catch {
       setFeatures(null);
-      setPlaidItems([]);
+      setSimplifinItems([]);
     }
   }, [session?.access_token]);
 
@@ -150,7 +150,7 @@ export default function Settings() {
         method: "POST",
         accessToken: session.access_token,
         body: JSON.stringify({
-          plaidItemId: unlinkTarget.id,
+          simplifinItemId: unlinkTarget.id,
           deleteHistory: unlinkDeleteHistory,
         }),
       });
@@ -212,11 +212,11 @@ export default function Settings() {
 
       <section className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/10 shadow-ambient">
         <h2 className="font-headline text-lg font-semibold text-on-surface mb-4">Linked bank connections</h2>
-        {plaidItems.length === 0 ? (
+        {simplifinItems.length === 0 ? (
           <p className="text-sm text-on-surface-variant font-body">No bank connections linked (SimpleFIN).</p>
         ) : (
           <div className="space-y-3">
-            {plaidItems.map((item) => (
+            {simplifinItems.map((item) => (
               <div key={item.id} className="rounded-lg border border-outline-variant/20 p-3">
                 <div className="flex items-start justify-between gap-4">
                   <div>

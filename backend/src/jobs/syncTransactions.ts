@@ -1,5 +1,5 @@
 import { getDb } from "../services/db/supabase.js";
-import { syncTransactionsForUser } from "../services/plaid/plaidService.js";
+import { syncTransactionsForUser } from "../services/simplifin/simplifinService.js";
 
 /** Sync transactions for all users that have linked SimpleFIN / legacy provider items (cron). */
 export async function syncTransactionsAllUsers() {

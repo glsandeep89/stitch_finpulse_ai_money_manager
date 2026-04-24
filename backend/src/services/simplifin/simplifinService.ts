@@ -1,6 +1,6 @@
 /**
  * Financial aggregation via SimpleFIN Bridge (https://bridge.simplefin.org).
- * Legacy route prefix remains `/plaid/*` and DB columns keep `plaid_*` names for compatibility.
+ * Express still mounts these handlers at legacy `/plaid/*`; DB columns keep `plaid_*` names.
  */
 import crypto from "crypto";
 import { getDb } from "../db/supabase.js";
@@ -246,7 +246,6 @@ async function upsertTransactionsFromPayload(
 
   for (const acc of payload.accounts ?? []) {
     if (Array.isArray(acc.errlist) && acc.errlist.length) {
-      // Surface first structured error as soft warning in logs only
       console.warn("SimpleFIN account errlist", acc.name, acc.errlist);
     }
     const accountId = stableAccountId(acc);
@@ -337,7 +336,7 @@ export async function exchangePublicToken(userId: string, publicToken: string) {
   return { item_id: itemKey, accounts_synced: count };
 }
 
-export async function refreshAccountsFromPlaid(userId: string) {
+export async function refreshAccountsFromSimplifin(userId: string) {
   const sb = getDb();
   const { data: items, error } = await sb
     .from("plaid_items")
@@ -431,18 +430,18 @@ async function loadAccountMap(userId: string): Promise<Map<string, string>> {
 
 async function ensureAccountLinked(
   userId: string,
-  plaidItemUuid: string,
+  itemUuid: string,
   _itemKey: string,
-  plaidAccountId: string,
+  accountId: string,
   acc: SimplefinAccount
 ): Promise<string | null> {
-  await upsertLinkedFromSimplefin(userId, plaidItemUuid, _itemKey, acc, plaidAccountId);
+  await upsertLinkedFromSimplefin(userId, itemUuid, _itemKey, acc, accountId);
   const sb = getDb();
   const { data: row } = await sb
     .from("linked_accounts")
     .select("id")
     .eq("user_id", userId)
-    .eq("plaid_account_id", plaidAccountId)
+    .eq("plaid_account_id", accountId)
     .single();
   return (row?.id as string) ?? null;
 }
@@ -469,7 +468,7 @@ export async function getInvestmentsForUser(userId: string) {
   };
 }
 
-export async function listPlaidItemsForUser(userId: string) {
+export async function listSimplifinItemsForUser(userId: string) {
   const sb = getDb();
   const { data: items, error } = await sb
     .from("plaid_items")
@@ -507,12 +506,12 @@ export async function listPlaidItemsForUser(userId: string) {
   }));
 }
 
-export async function unlinkPlaidItemForUser(userId: string, plaidItemId: string, deleteHistory: boolean) {
+export async function unlinkSimplifinItemForUser(userId: string, itemId: string, deleteHistory: boolean) {
   const sb = getDb();
   const { data: item, error } = await sb
     .from("plaid_items")
     .select("id, access_token")
-    .eq("id", plaidItemId)
+    .eq("id", itemId)
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
@@ -522,10 +521,10 @@ export async function unlinkPlaidItemForUser(userId: string, plaidItemId: string
     .from("linked_accounts")
     .select("id, plaid_account_id")
     .eq("user_id", userId)
-    .eq("plaid_item_id", plaidItemId);
+    .eq("plaid_item_id", itemId);
   if (accErr) throw accErr;
   const linkedAccountIds = (accounts ?? []).map((a) => a.id as string);
-  const plaidAccountIds = (accounts ?? []).map((a) => a.plaid_account_id as string);
+  const accountIds = (accounts ?? []).map((a) => a.plaid_account_id as string);
 
   if (deleteHistory && linkedAccountIds.length > 0) {
     const { error: txErr } = await sb
@@ -535,12 +534,12 @@ export async function unlinkPlaidItemForUser(userId: string, plaidItemId: string
       .in("linked_account_id", linkedAccountIds);
     if (txErr) throw txErr;
 
-    if (plaidAccountIds.length > 0) {
+    if (accountIds.length > 0) {
       const { error: refundErr } = await sb
         .from("refund_events")
         .delete()
         .eq("user_id", userId)
-        .in("plaid_account_id", plaidAccountIds);
+        .in("plaid_account_id", accountIds);
       const refundMsg = String((refundErr as { message?: string } | null)?.message ?? "");
       if (refundErr && !refundMsg.includes("Could not find the table")) throw refundErr;
 
@@ -548,7 +547,7 @@ export async function unlinkPlaidItemForUser(userId: string, plaidItemId: string
         .from("credit_card_rewards_profiles")
         .delete()
         .eq("user_id", userId)
-        .in("plaid_account_id", plaidAccountIds);
+        .in("plaid_account_id", accountIds);
       const rewardsMsg = String((rewardsErr as { message?: string } | null)?.message ?? "");
       if (rewardsErr && !rewardsMsg.includes("Could not find the table")) throw rewardsErr;
     }
@@ -557,10 +556,8 @@ export async function unlinkPlaidItemForUser(userId: string, plaidItemId: string
     if (subsErr) throw subsErr;
   }
 
-  const { error: delErr } = await sb.from("plaid_items").delete().eq("id", plaidItemId).eq("user_id", userId);
+  const { error: delErr } = await sb.from("plaid_items").delete().eq("id", itemId).eq("user_id", userId);
   if (delErr) throw delErr;
-
-  // SimpleFIN access is revoked by the user in Bridge UI; nothing to call server-side.
 
   return { ok: true, deletedHistory: deleteHistory };
 }

@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { config, normalizeSiteOrigin } from "./config.js";
-import { plaidRouter } from "./routes/plaid.js";
+import { simplifinRouter } from "./routes/simplifin.js";
 import { dataRouter } from "./routes/data.js";
 import { aiRouter } from "./routes/ai.js";
 import { jobsRouter } from "./routes/jobs.js";
@@ -38,7 +38,8 @@ export function createApp() {
     res.json({ ok: true, service: "finpulse-api" });
   });
 
-  app.use("/plaid", plaidRouter);
+  /** Legacy path: clients still call `/plaid/*`; handlers live in `routes/simplifin.ts`. */
+  app.use("/plaid", simplifinRouter);
   app.use("/", dataRouter);
   app.use("/households", householdRouter);
   app.use("/", profileRouter);
