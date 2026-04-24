@@ -31,6 +31,8 @@ type NetWorth = {
 };
 
 type ChartPreset = "7d" | "30d" | "90d" | "custom";
+type ComparePreset = "month" | "week" | "rolling30";
+type ComparePoint = { day: number; current: number; previous: number };
 
 function fmt(n: number) {
   return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -77,6 +79,10 @@ export default function Overview() {
   const [budgetAlerts, setBudgetAlerts] = useState<{ category: string; pct?: number }[]>([]);
   const [aiByFamily, setAiByFamily] = useState<AiOutputsResponse["byFamily"] | null>(null);
   const [refreshAccountsBusy, setRefreshAccountsBusy] = useState(false);
+  const [summaryMode, setSummaryMode] = useState<"totals" | "percent">("totals");
+  const [comparePreset, setComparePreset] = useState<ComparePreset>("month");
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareData, setCompareData] = useState<ComparePoint[]>([]);
 
   const [chartPreset, setChartPreset] = useState<ChartPreset>("30d");
   const [dateFrom, setDateFrom] = useState(() => presetDateRange(30).from);
@@ -234,6 +240,121 @@ export default function Overview() {
     name === "income" ? "Income" : name === "spend" ? "Spending" : String(name),
   ];
 
+  const summaryRows = useMemo(() => {
+    const cash = accounts
+      .filter((a) => String(a.type ?? "").toLowerCase() === "depository")
+      .reduce((s, a) => s + Number(a.balance_current ?? 0), 0);
+    const investments = accounts
+      .filter((a) => {
+        const t = String(a.type ?? "").toLowerCase();
+        const st = String(a.subtype ?? "").toLowerCase();
+        return t === "investment" || st.includes("ira") || st.includes("401k") || st.includes("brokerage");
+      })
+      .reduce((s, a) => s + Number(a.balance_current ?? 0), 0);
+    const creditCards = accounts
+      .filter((a) => {
+        const t = String(a.type ?? "").toLowerCase();
+        const st = String(a.subtype ?? "").toLowerCase();
+        return t === "credit" || st.includes("credit");
+      })
+      .reduce((s, a) => s + Math.abs(Number(a.balance_current ?? 0)), 0);
+    const assetTotal = Math.max(0, cash + investments);
+    const liabilityTotal = Math.max(0, creditCards);
+    return {
+      assetTotal,
+      liabilityTotal,
+      assets: [
+        { label: "Cash", value: cash, color: "bg-emerald-500" },
+        { label: "Investments", value: investments, color: "bg-sky-400" },
+      ],
+      liabilities: [{ label: "Credit Cards", value: creditCards, color: "bg-rose-500" }],
+    };
+  }, [accounts]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const ymd = (d: Date) => d.toISOString().slice(0, 10);
+    const addDays = (d: Date, n: number) => {
+      const c = new Date(d);
+      c.setDate(c.getDate() + n);
+      return c;
+    };
+    const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
+    const startOfWeek = (d: Date) => {
+      const c = new Date(d);
+      const dow = (c.getDay() + 6) % 7;
+      c.setDate(c.getDate() - dow);
+      c.setHours(0, 0, 0, 0);
+      return c;
+    };
+    const today = new Date();
+    const buildRange = () => {
+      if (comparePreset === "month") {
+        const startCurrent = startOfMonth(today);
+        const dayIndex = Math.max(1, Math.floor((today.getTime() - startCurrent.getTime()) / 86400000) + 1);
+        const startPrev = startOfMonth(new Date(today.getFullYear(), today.getMonth() - 1, 1));
+        return {
+          current: { from: ymd(startCurrent), to: ymd(today), days: dayIndex },
+          previous: { from: ymd(startPrev), to: ymd(addDays(startPrev, dayIndex - 1)), days: dayIndex },
+        };
+      }
+      if (comparePreset === "week") {
+        const startCurrent = startOfWeek(today);
+        const dayIndex = Math.max(1, Math.floor((today.getTime() - startCurrent.getTime()) / 86400000) + 1);
+        const startPrev = addDays(startCurrent, -7);
+        return {
+          current: { from: ymd(startCurrent), to: ymd(today), days: dayIndex },
+          previous: { from: ymd(startPrev), to: ymd(addDays(startPrev, dayIndex - 1)), days: dayIndex },
+        };
+      }
+      const startCurrent = addDays(today, -29);
+      const startPrev = addDays(startCurrent, -30);
+      return {
+        current: { from: ymd(startCurrent), to: ymd(today), days: 30 },
+        previous: { from: ymd(startPrev), to: ymd(addDays(startPrev, 29)), days: 30 },
+      };
+    };
+    const fetchCompare = async () => {
+      setCompareLoading(true);
+      try {
+        const r = buildRange();
+        const [current, previous] = await Promise.all([
+          api<{ series: { date: string; income: number; spend: number }[] }>(
+            `/analytics/cash-flow?from=${encodeURIComponent(r.current.from)}&to=${encodeURIComponent(r.current.to)}`,
+            { accessToken: session.access_token }
+          ),
+          api<{ series: { date: string; income: number; spend: number }[] }>(
+            `/analytics/cash-flow?from=${encodeURIComponent(r.previous.from)}&to=${encodeURIComponent(r.previous.to)}`,
+            { accessToken: session.access_token }
+          ),
+        ]);
+        const byDay = (series: { date: string; spend: number }[]) => {
+          const sorted = [...series].sort((a, b) => a.date.localeCompare(b.date));
+          let running = 0;
+          return sorted.map((s, idx) => {
+            running += Number(s.spend ?? 0);
+            return { idx: idx + 1, value: running };
+          });
+        };
+        const curr = byDay(current.series ?? []);
+        const prev = byDay(previous.series ?? []);
+        const maxDays = Math.max(r.current.days, curr.length, prev.length);
+        const points: ComparePoint[] = [];
+        for (let day = 1; day <= maxDays; day++) {
+          points.push({
+            day,
+            current: curr.find((c) => c.idx === day)?.value ?? (curr.length ? curr[curr.length - 1]!.value : 0),
+            previous: prev.find((p) => p.idx === day)?.value ?? (prev.length ? prev[prev.length - 1]!.value : 0),
+          });
+        }
+        setCompareData(points);
+      } finally {
+        setCompareLoading(false);
+      }
+    };
+    void fetchCompare();
+  }, [comparePreset, session?.access_token]);
+
   return (
     <div className="space-y-8 pb-12">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -312,6 +433,108 @@ export default function Overview() {
           className="absolute right-0 top-0 w-1/2 h-full opacity-20 pointer-events-none"
           style={{ background: "radial-gradient(circle at top right, #6ffbbe 0%, transparent 70%)" }}
         />
+      </section>
+
+      <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/10 p-6 shadow-ambient">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-headline text-xl font-semibold text-on-surface">Summary</h3>
+          <div className="flex rounded-full bg-surface-container-low p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setSummaryMode("totals")}
+              className={`px-3 py-1.5 rounded-full ${summaryMode === "totals" ? "bg-surface-container-lowest font-semibold" : "text-on-surface-variant"}`}
+            >
+              Totals
+            </button>
+            <button
+              type="button"
+              onClick={() => setSummaryMode("percent")}
+              className={`px-3 py-1.5 rounded-full ${summaryMode === "percent" ? "bg-surface-container-lowest font-semibold" : "text-on-surface-variant"}`}
+            >
+              Percent
+            </button>
+          </div>
+        </div>
+        <div className="space-y-5">
+          <div>
+            <h4 className="font-headline text-lg font-semibold mb-2">Assets</h4>
+            <div className="h-3 rounded-full bg-surface-container-high overflow-hidden mb-3">
+              <div className="h-full bg-emerald-500" style={{ width: "100%" }} />
+            </div>
+            <div className="space-y-2">
+              {summaryRows.assets.map((r) => {
+                const denominator = summaryRows.assetTotal || 1;
+                const pct = Math.max(0, Math.min(100, (r.value / denominator) * 100));
+                const labelValue = summaryMode === "percent" ? `${pct.toFixed(1)}%` : fmt(r.value);
+                return (
+                  <div key={r.label} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${r.color}`} />
+                      <span>{r.label}</span>
+                    </div>
+                    <span className="font-medium">{labelValue}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <h4 className="font-headline text-lg font-semibold mb-2">Liabilities</h4>
+            <div className="h-3 rounded-full bg-surface-container-high overflow-hidden mb-3">
+              <div className="h-full bg-rose-500" style={{ width: "100%" }} />
+            </div>
+            <div className="space-y-2">
+              {summaryRows.liabilities.map((r) => {
+                const denominator = summaryRows.liabilityTotal || 1;
+                const pct = Math.max(0, Math.min(100, (r.value / denominator) * 100));
+                const labelValue = summaryMode === "percent" ? `${pct.toFixed(1)}%` : fmt(r.value);
+                return (
+                  <div key={r.label} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${r.color}`} />
+                      <span>{r.label}</span>
+                    </div>
+                    <span className="font-medium">{labelValue}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/10 p-6 shadow-ambient">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h3 className="font-headline text-xl font-semibold text-on-surface">
+            Spending {compareData.length ? fmt(compareData[compareData.length - 1]!.current) : fmt(0)} this period
+          </h3>
+          <select
+            value={comparePreset}
+            onChange={(e) => setComparePreset(e.target.value as ComparePreset)}
+            className="rounded-xl border border-outline-variant/30 px-3 py-1.5 text-sm bg-surface-container-lowest"
+          >
+            <option value="month">This month vs. last month</option>
+            <option value="week">This week vs. last week</option>
+            <option value="rolling30">Last 30 days vs. previous 30 days</option>
+          </select>
+        </div>
+        <div className="h-72">
+          {compareLoading ? (
+            <p className="text-sm text-on-surface-variant">Loading comparison…</p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={compareData} margin={{ top: 8, right: 12, left: 8, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="day" tickFormatter={(v) => `Day ${v}`} />
+                <YAxis tickFormatter={(v) => `$${Math.round(Number(v) / 1000)}k`} />
+                <Tooltip formatter={(v: number) => fmt(Number(v))} />
+                <Legend />
+                <Line name="Last period" dataKey="previous" stroke="#8b97ab" strokeWidth={2.5} dot={false} />
+                <Line name="This period" dataKey="current" stroke="#ff7f32" strokeWidth={3} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </section>
 
       <section className="space-y-3" aria-label="AI outlook">

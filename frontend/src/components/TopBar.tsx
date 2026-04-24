@@ -13,19 +13,19 @@ export function TopBar() {
   const [searchDraft, setSearchDraft] = useState("");
   const initials = initialsFromUser(user?.email ?? undefined);
   const path = location.pathname;
-  const showSearch = path === "/creditcards" || path === "/";
+  const showSearch = path === "/creditcards" || path === "/" || path === "/transactions";
   const pageTitle = routePageTitle[path] ?? "FinPulse";
 
   useEffect(() => {
     const q = new URLSearchParams(location.search).get("q");
-    if (location.pathname === "/creditcards" && q) {
+    if ((location.pathname === "/creditcards" || location.pathname === "/transactions") && q) {
       setSearchDraft(q);
     }
   }, [location.pathname, location.search]);
 
   const submitSearch = () => {
     const q = searchDraft.trim();
-    navigate(q ? `/creditcards?q=${encodeURIComponent(q)}` : "/creditcards");
+    navigate(q ? `/transactions?q=${encodeURIComponent(q)}` : "/transactions");
   };
 
   return (

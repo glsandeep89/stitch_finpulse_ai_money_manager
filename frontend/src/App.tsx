@@ -12,6 +12,8 @@ import Budget from "./pages/Budget";
 import Household from "./pages/Household";
 import Settings from "./pages/Settings";
 import SettingsAdvanced from "./pages/SettingsAdvanced";
+import Subscriptions from "./pages/Subscriptions";
+import Transactions from "./pages/Transactions";
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -43,6 +45,8 @@ export default function App() {
         <Route path="/mortgage" element={<Mortgage />} />
         <Route path="/insights" element={<Insights />} />
         <Route path="/budget" element={<Budget />} />
+        <Route path="/transactions" element={<Transactions />} />
+        <Route path="/subscriptions" element={<Subscriptions />} />
         <Route path="/household" element={<Household />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/advanced" element={<SettingsAdvanced />} />

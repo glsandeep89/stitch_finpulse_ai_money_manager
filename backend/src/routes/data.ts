@@ -26,6 +26,7 @@ import {
   upsertTransactionLabel,
   listRefundTracker,
   setRefundEventStatus,
+  setRecurringPreference,
   listCreditCardRewardsProfiles,
   getBestCardRecommendation,
   getAnnualFeeRoi,
@@ -478,6 +479,21 @@ dataRouter.post("/refund-tracker/:id/status", async (req, res) => {
       .parse(req.body ?? {});
     const data = await setRefundEventStatus(req.userId!, id, body.status);
     res.json(data);
+  } catch (e: unknown) {
+    res.status(400).json({ error: (e as Error).message });
+  }
+});
+
+dataRouter.post("/subscriptions/recurring-preference", async (req, res) => {
+  try {
+    const body = z
+      .object({
+        plaid_transaction_id: z.string().min(1),
+        isRecurring: z.boolean(),
+      })
+      .parse(req.body ?? {});
+    const out = await setRecurringPreference(req.userId!, body);
+    res.json(out);
   } catch (e: unknown) {
     res.status(400).json({ error: (e as Error).message });
   }

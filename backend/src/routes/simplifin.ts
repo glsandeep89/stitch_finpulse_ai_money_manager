@@ -120,7 +120,6 @@ simplifinRouter.post("/unlink-item", async (req, res) => {
       .object({
         plaidItemId: z.string().uuid().optional(),
         simplifinItemId: z.string().uuid().optional(),
-        deleteHistory: z.boolean().default(false),
       })
       .refine((b) => Boolean(b.plaidItemId || b.simplifinItemId), {
         message: "Provide simplifinItemId or legacy plaidItemId (same UUID).",
@@ -128,7 +127,7 @@ simplifinRouter.post("/unlink-item", async (req, res) => {
       .parse(req.body ?? {});
     const itemId = body.simplifinItemId ?? body.plaidItemId!;
     const userId = req.userId!;
-    const out = await unlinkSimplifinItemForUser(userId, itemId, body.deleteHistory);
+    const out = await unlinkSimplifinItemForUser(userId, itemId);
     res.json(out);
   } catch (e: unknown) {
     const err = e as Error;

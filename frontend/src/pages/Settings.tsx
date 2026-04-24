@@ -40,7 +40,6 @@ export default function Settings() {
     id: string;
     label: string;
   } | null>(null);
-  const [unlinkDeleteHistory, setUnlinkDeleteHistory] = useState(false);
   const [unlinkBusy, setUnlinkBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -152,16 +151,10 @@ export default function Settings() {
         accessToken: session.access_token,
         body: JSON.stringify({
           simplifinItemId: unlinkTarget.id,
-          deleteHistory: unlinkDeleteHistory,
         }),
       });
-      setOk(
-        unlinkDeleteHistory
-          ? "Connection unlinked and imported history deleted."
-          : "Connection unlinked. Historical data was kept."
-      );
+      setOk("Connection unlinked and imported history deleted.");
       setUnlinkTarget(null);
-      setUnlinkDeleteHistory(false);
       await load();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Failed to unlink item");
@@ -359,24 +352,15 @@ export default function Settings() {
           <div className="w-full max-w-md rounded-xl bg-surface-container-lowest border border-outline-variant/20 p-5 shadow-ambient">
             <h3 className="font-headline text-lg font-semibold text-on-surface">Unlink connection?</h3>
             <p className="text-sm text-on-surface-variant mt-2">
-              This will stop future syncs for <span className="font-medium text-on-surface">{unlinkTarget.label}</span>.
+              This will stop future syncs for <span className="font-medium text-on-surface">{unlinkTarget.label}</span> and
+              remove imported rows tied to this connection.
             </p>
-            <label className="mt-4 flex items-start gap-3 text-sm text-on-surface">
-              <input
-                type="checkbox"
-                checked={unlinkDeleteHistory}
-                onChange={(e) => setUnlinkDeleteHistory(e.target.checked)}
-                className="mt-1"
-              />
-              <span>Also delete imported transactions/subscriptions/refunds tied to this connection.</span>
-            </label>
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
                 type="button"
                 className="px-3 py-2 rounded-lg text-sm border border-outline-variant/30"
                 onClick={() => {
                   setUnlinkTarget(null);
-                  setUnlinkDeleteHistory(false);
                 }}
                 disabled={unlinkBusy}
               >

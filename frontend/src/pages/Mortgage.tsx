@@ -65,6 +65,8 @@ export default function Mortgage() {
       </div>
     );
 
+  const loanCount = (data?.mortgageAccounts?.length ?? 0) + (data?.autoLoanAccounts?.length ?? 0);
+
   return (
     <div className="space-y-8">
       {err ? <p className="text-sm text-error">{err}</p> : null}
@@ -73,16 +75,27 @@ export default function Mortgage() {
         <p className="text-sm text-on-surface-variant">Home mortgage, auto loans, and escrow forecasting.</p>
       </div>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/15 p-5">
-          <h2 className="font-headline font-semibold mb-3">Mortgage and escrow accounts</h2>
-          {renderAccounts(data?.mortgageAccounts ?? [])}
-        </div>
-        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/15 p-5">
-          <h2 className="font-headline font-semibold mb-3">Auto loan accounts</h2>
-          {renderAccounts(data?.autoLoanAccounts ?? [])}
-        </div>
-      </section>
+      {loanCount === 0 ? (
+        <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/15 p-5">
+          <h2 className="font-headline font-semibold mb-2">Linked loans</h2>
+          <p className="text-sm text-on-surface-variant">No loan or mortgage accounts linked yet.</p>
+        </section>
+      ) : (
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {(data?.mortgageAccounts?.length ?? 0) > 0 ? (
+            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/15 p-5">
+              <h2 className="font-headline font-semibold mb-3">Mortgage and escrow accounts</h2>
+              {renderAccounts(data?.mortgageAccounts ?? [])}
+            </div>
+          ) : null}
+          {(data?.autoLoanAccounts?.length ?? 0) > 0 ? (
+            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/15 p-5">
+              <h2 className="font-headline font-semibold mb-3">Auto loan accounts</h2>
+              {renderAccounts(data?.autoLoanAccounts ?? [])}
+            </div>
+          ) : null}
+        </section>
+      )}
 
       <section>
         {escrowAi.escrow ? (

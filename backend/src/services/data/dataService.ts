@@ -104,7 +104,26 @@ export async function listTransactions(
 
   const { data, error } = await q;
   if (error) throw error;
-  let rows = data ?? [];
+  const overrides = await userMerchantCategoryOverrides(userIds);
+  let rows = (data ?? []).map((row) => {
+    const merchant = canonicalMerchantName((row as { merchant_name?: string | null }).merchant_name);
+    let resolvedCategory: string | null = null;
+    for (const [pattern, category] of overrides.entries()) {
+      if (pattern && normalizeText(merchant).includes(pattern)) {
+        resolvedCategory = category;
+        break;
+      }
+    }
+    if (!resolvedCategory) {
+      const firstNative = ((row as { category?: string[] | null }).category ?? [])[0] ?? null;
+      resolvedCategory = firstNative && firstNative.trim() ? firstNative : systemCategoryFromMerchant(merchant);
+    }
+    return {
+      ...row,
+      merchant_name: merchant,
+      category: [resolvedCategory],
+    };
+  });
   if (opts.category) {
     const needle = opts.category.toLowerCase();
     rows = rows.filter((t: { category?: string[] | null }) =>
@@ -205,12 +224,137 @@ export async function createBudgetProject(
 export async function getSubscriptions(userIds: string[]) {
   if (userIds.length === 0) return [];
   const sb = getDb();
-  const { data, error } = await sb
+  const { data: existing, error } = await sb
     .from("subscriptions")
     .select("*")
     .in("user_id", userIds);
   if (error) throw error;
-  return data ?? [];
+  const txs = (await listTransactions(userIds, { limit: 5000 })) as {
+    user_id: string;
+    merchant_name: string | null;
+    amount: number;
+    trans_date: string;
+  }[];
+
+  const forcedRecurring = new Set<string>();
+  const forcedExcluded = new Set<string>();
+  for (const row of existing ?? []) {
+    const raw = (row.raw ?? {}) as Record<string, unknown>;
+    const k = normalizeText(String(raw.merchant_key ?? row.merchant_name ?? row.name ?? ""));
+    if (!k) continue;
+    if (raw.force_recurring === true) forcedRecurring.add(k);
+    if (raw.force_recurring === false) forcedExcluded.add(k);
+  }
+
+  const byMerchant = new Map<string, { user_id: string; amounts: number[]; dates: Date[]; name: string }>();
+  for (const t of txs) {
+    const amt = Number(t.amount);
+    if (!Number.isFinite(amt) || amt === 0) continue;
+    const key = normalizeText(t.merchant_name);
+    if (!key) continue;
+    if (isCardPaymentLike({ amount: amt, category: null, merchant_name: t.merchant_name })) continue;
+    const d = new Date(`${t.trans_date}T00:00:00.000Z`);
+    if (Number.isNaN(d.getTime())) continue;
+    const cur = byMerchant.get(key) ?? {
+      user_id: t.user_id,
+      amounts: [],
+      dates: [],
+      name: canonicalMerchantName(t.merchant_name),
+    };
+    cur.amounts.push(amt);
+    cur.dates.push(d);
+    byMerchant.set(key, cur);
+  }
+
+  const inferred: Array<{
+    user_id: string;
+    name: string;
+    merchant_name: string;
+    amount: number;
+    frequency: string;
+    next_payment_date: string | null;
+    raw: Record<string, unknown>;
+  }> = [];
+
+  for (const [key, group] of byMerchant.entries()) {
+    group.dates.sort((a, b) => a.getTime() - b.getTime());
+    if (group.dates.length < 2 && !forcedRecurring.has(key)) continue;
+    if (forcedExcluded.has(key)) continue;
+    const avgAmount = group.amounts.reduce((s, a) => s + Math.abs(a), 0) / Math.max(1, group.amounts.length);
+    if (avgAmount < 2 && !forcedRecurring.has(key)) continue;
+
+    let frequency = "monthly";
+    let next: string | null = null;
+    if (group.dates.length >= 2) {
+      const gaps: number[] = [];
+      for (let i = 1; i < group.dates.length; i++) {
+        gaps.push(Math.round((group.dates[i]!.getTime() - group.dates[i - 1]!.getTime()) / 86400000));
+      }
+      const mean = gaps.reduce((s, n) => s + n, 0) / gaps.length;
+      if (mean <= 10) frequency = "weekly";
+      else if (mean <= 20) frequency = "biweekly";
+      else if (mean <= 40) frequency = "monthly";
+      else frequency = "quarterly";
+      const last = group.dates[group.dates.length - 1]!;
+      const nextDate = new Date(last);
+      nextDate.setUTCDate(nextDate.getUTCDate() + Math.max(7, Math.round(mean)));
+      next = nextDate.toISOString().slice(0, 10);
+    } else if (forcedRecurring.has(key)) {
+      const last = group.dates[group.dates.length - 1]!;
+      const nextDate = new Date(last);
+      nextDate.setUTCDate(nextDate.getUTCDate() + 30);
+      next = nextDate.toISOString().slice(0, 10);
+    }
+
+    inferred.push({
+      user_id: group.user_id,
+      name: group.name,
+      merchant_name: group.name,
+      amount: Number(avgAmount.toFixed(2)),
+      frequency,
+      next_payment_date: next,
+      raw: {
+        source: "auto-recurring-v1",
+        merchant_key: key,
+        sample_count: group.dates.length,
+        force_recurring: forcedRecurring.has(key) ? true : forcedExcluded.has(key) ? false : null,
+      },
+    });
+  }
+
+  for (const row of inferred) {
+    const { data: existingRow, error: existingErr } = await sb
+      .from("subscriptions")
+      .select("id")
+      .eq("user_id", row.user_id)
+      .eq("name", row.name)
+      .maybeSingle();
+    if (existingErr) throw existingErr;
+    if (existingRow?.id) {
+      const { error: updateErr } = await sb
+        .from("subscriptions")
+        .update({
+          merchant_name: row.merchant_name,
+          amount: row.amount,
+          frequency: row.frequency,
+          next_payment_date: row.next_payment_date,
+          raw: row.raw,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingRow.id);
+      if (updateErr) throw updateErr;
+    } else {
+      const { error: insertErr } = await sb.from("subscriptions").insert(row);
+      if (insertErr) throw insertErr;
+    }
+  }
+
+  const { data: refreshed, error: refreshedErr } = await sb
+    .from("subscriptions")
+    .select("*")
+    .in("user_id", userIds);
+  if (refreshedErr) throw refreshedErr;
+  return refreshed ?? [];
 }
 
 export async function getNetWorth(userIds: string[]) {
@@ -257,16 +401,7 @@ export async function getNetWorth(userIds: string[]) {
 export async function getCreditCardPayments(userIds: string[], from?: string, to?: string) {
   const txs = await listTransactions(userIds, { from, to, limit: 500 });
   const filtered = (txs as { merchant_name: string | null; amount: number; category: string[] | null; name?: string }[]).filter(
-    (t) => {
-      const cat = (t.category ?? []).join(" ").toLowerCase();
-      const name = `${t.merchant_name ?? ""} ${(t as { name?: string }).name ?? ""}`.toLowerCase();
-      return (
-        cat.includes("payment") ||
-        cat.includes("credit") ||
-        name.includes("payment") ||
-        name.includes("card")
-      );
-    }
+    (t) => Number(t.amount) < 0 && isCardPaymentLike(t)
   );
   return filtered;
 }
@@ -315,9 +450,7 @@ export async function getCreditCardSummary(userIds: string[]) {
   }[])
     .filter((t) => {
       if (!t.plaid_account_id || !cardIds.has(t.plaid_account_id)) return false;
-      const amt = Number(t.amount);
-      const cat = (t.category ?? []).join(" ").toLowerCase();
-      return amt < 0 || cat.includes("payment") || cat.includes("transfer");
+      return Number(t.amount) < 0 && isCardPaymentLike(t);
     })
     .slice(0, 25);
 
@@ -477,10 +610,25 @@ function isCreditAccount(a: AccountRow): boolean {
   return asLower(a.type) === "credit" || asLower(a.subtype).includes("credit");
 }
 
+function isCardPaymentLike(t: { amount: number; category: string[] | null; merchant_name: string | null }): boolean {
+  const cat = (t.category ?? []).join(" ").toLowerCase();
+  const merchant = asLower(t.merchant_name);
+  return (
+    cat.includes("payment") ||
+    cat.includes("transfer") ||
+    merchant.includes("payment") ||
+    merchant.includes("autopay") ||
+    merchant.includes("thank you")
+  );
+}
+
 function isRefundLikeTx(t: { amount: number; category: string[] | null; merchant_name: string | null }): boolean {
   const cat = (t.category ?? []).join(" ").toLowerCase();
   const merchant = asLower(t.merchant_name);
-  return Number(t.amount) < 0 || cat.includes("refund") || cat.includes("return") || merchant.includes("refund");
+  const amount = Number(t.amount);
+  if (isCardPaymentLike(t)) return false;
+  if (amount >= 0) return false;
+  return cat.includes("refund") || cat.includes("return") || merchant.includes("refund") || merchant.includes("return");
 }
 
 function asNum(value: unknown, fallback = 0): number {
@@ -493,6 +641,74 @@ function normalizeText(value: string | null | undefined): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+function toTitleCase(input: string): string {
+  return input
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+const MERCHANT_CLEAN_RULES: Array<{ pattern: RegExp; replacement: string }> = [
+  { pattern: /sampay\*?\s*doordash|doordash|door dash/i, replacement: "DoorDash" },
+  { pattern: /home\s*depot|homedepot/i, replacement: "Home Depot" },
+  { pattern: /\bchase\b/i, replacement: "Chase" },
+  { pattern: /\bamerican\s+express\b|\bamex\b/i, replacement: "American Express" },
+  { pattern: /\bgoogle\b/i, replacement: "Google" },
+  { pattern: /\bnetflix\b/i, replacement: "Netflix" },
+  { pattern: /\bspotify\b/i, replacement: "Spotify" },
+  { pattern: /\bapple\b/i, replacement: "Apple" },
+  { pattern: /\bamazon\b/i, replacement: "Amazon" },
+  { pattern: /\bwalmart\b/i, replacement: "Walmart" },
+  { pattern: /\btarget\b/i, replacement: "Target" },
+];
+
+function canonicalMerchantName(raw: string | null | undefined): string {
+  const source = String(raw ?? "").trim();
+  if (!source) return "Unknown";
+
+  for (const rule of MERCHANT_CLEAN_RULES) {
+    if (rule.pattern.test(source)) return rule.replacement;
+  }
+
+  let cleaned = source
+    .replace(/^(pos|dbt|debit|visa|mc|mastercard|ach|online|web|card)\s+/i, "")
+    .replace(/^(payment|transfer)\s+/i, "")
+    .replace(/[0-9]{3,}/g, " ")
+    .replace(/\*/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  // Keep only the leading human-readable merchant fragment.
+  cleaned = cleaned.split(/ {2,}| - | \/ /)[0]?.trim() ?? cleaned;
+  if (!cleaned) return "Unknown";
+  return toTitleCase(cleaned.toLowerCase());
+}
+
+function systemCategoryFromMerchant(merchant: string): string {
+  const m = normalizeText(merchant);
+  if (/(doordash|ubereats|grubhub|restaurant|cafe|coffee)/.test(m)) return "Restaurants";
+  if (/(home depot|lowes|ace hardware)/.test(m)) return "Home Improvements";
+  if (/(walmart|target|costco|whole foods|trader joes|heb|kroger|grocery)/.test(m)) return "Groceries";
+  if (/(shell|chevron|exxon|fuel|gas)/.test(m)) return "Auto Maintenance";
+  if (/(verizon|att|t mobile|xfinity|spectrum|internet|phone)/.test(m)) return "Business Utilities & Communication";
+  if (/(amazon|best buy|shopping|store|retail)/.test(m)) return "Shopping";
+  if (/(payroll|paycheck|salary)/.test(m)) return "Paychecks";
+  if (/(interest)/.test(m)) return "Interest";
+  if (/(rent|mortgage)/.test(m)) return "Housing";
+  return "Uncategorized";
+}
+
+async function userMerchantCategoryOverrides(userIds: string[]): Promise<Map<string, string>> {
+  const mappings = (await listCategoryMappings(userIds)) as { plaid_category_pattern: string; budget_category: string }[];
+  const out = new Map<string, string>();
+  for (const m of mappings) {
+    const k = normalizeText(m.plaid_category_pattern);
+    if (k) out.set(k, m.budget_category.trim());
+  }
+  return out;
 }
 
 export function categoryKeyForRecommendation(merchant: string, category?: string): string {
@@ -745,11 +961,7 @@ export async function getCreditCardsSnapshot(userIds: string[]) {
   const cardTx = txs.filter((t) => t.plaid_account_id && cardIds.has(t.plaid_account_id));
   const spending = cardTx.filter((t) => Number(t.amount) > 0).slice(0, 200);
   const cardPayments = cardTx
-    .filter((t) => {
-      const cat = (t.category ?? []).join(" ").toLowerCase();
-      const merchant = asLower(t.merchant_name);
-      return Number(t.amount) < 0 || cat.includes("payment") || merchant.includes("payment");
-    })
+    .filter((t) => Number(t.amount) < 0 && isCardPaymentLike(t))
     .slice(0, 100);
   const refunds = cardTx.filter(isRefundLikeTx).slice(0, 200);
 
@@ -817,12 +1029,20 @@ export async function getMortgageSnapshot(userIds: string[]) {
   if (error) throw error;
   const rows = (data ?? []) as AccountRow[];
 
+  const isLoanLike = (a: AccountRow): boolean => {
+    const t = asLower(a.type);
+    const st = asLower(a.subtype);
+    return t === "loan" || st.includes("loan") || st.includes("mortgage");
+  };
+
   const mortgageAccounts = rows.filter((a) => {
+    if (!isLoanLike(a)) return false;
     const st = asLower(a.subtype);
     const n = asLower(a.name);
     return st.includes("mortgage") || n.includes("mortgage") || n.includes("escrow");
   });
   const autoLoanAccounts = rows.filter((a) => {
+    if (!isLoanLike(a)) return false;
     const st = asLower(a.subtype);
     const n = asLower(a.name);
     return st.includes("auto") || st.includes("car") || n.includes("auto loan") || n.includes("car loan");
@@ -868,17 +1088,20 @@ export async function listRefundTracker(userIds: string[]) {
     merchant_name: string | null;
     amount: number;
     trans_date: string;
+    user_id?: string;
   }[]) {
+    const merchant = asLower(tx.merchant_name);
+    const status = merchant.includes("pending") ? "pending" : "manual";
     const { error } = await sb.from("refund_events").upsert(
       {
-        user_id: userIds[0],
+        user_id: tx.user_id ?? userIds[0],
         transaction_id: tx.id,
         plaid_transaction_id: tx.plaid_transaction_id,
         plaid_account_id: tx.plaid_account_id,
         merchant_name: tx.merchant_name,
         amount: Number(tx.amount),
         trans_date: tx.trans_date,
-        status: "posted",
+        status,
       },
       { onConflict: "user_id,plaid_transaction_id" }
     );
@@ -913,4 +1136,64 @@ export async function setRefundEventStatus(userId: string, id: string, status: s
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function setRecurringPreference(
+  userId: string,
+  body: { plaid_transaction_id: string; isRecurring: boolean }
+) {
+  const sb = getDb();
+  const { data: tx, error: txErr } = await sb
+    .from("transactions")
+    .select("merchant_name")
+    .eq("user_id", userId)
+    .eq("plaid_transaction_id", body.plaid_transaction_id)
+    .maybeSingle();
+  if (txErr) throw txErr;
+  if (!tx) throw new Error("Transaction not found.");
+
+  const merchant = canonicalMerchantName((tx as { merchant_name?: string | null }).merchant_name ?? null);
+  const merchantKey = normalizeText(merchant);
+  if (!merchantKey) throw new Error("Transaction merchant unavailable.");
+
+  const { data: existing, error: existingErr } = await sb
+    .from("subscriptions")
+    .select("id, raw")
+    .eq("user_id", userId)
+    .eq("name", merchant)
+    .maybeSingle();
+  if (existingErr) throw existingErr;
+
+  if (existing?.id) {
+    const currentRaw = (existing.raw ?? {}) as Record<string, unknown>;
+    const { error: updErr } = await sb
+      .from("subscriptions")
+      .update({
+        raw: {
+          ...currentRaw,
+          merchant_key: merchantKey,
+          force_recurring: body.isRecurring,
+          override_source: "user",
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id);
+    if (updErr) throw updErr;
+  } else {
+    const { error: insErr } = await sb.from("subscriptions").insert({
+      user_id: userId,
+      name: merchant,
+      merchant_name: merchant,
+      amount: null,
+      frequency: "monthly",
+      next_payment_date: null,
+      raw: {
+        merchant_key: merchantKey,
+        force_recurring: body.isRecurring,
+        override_source: "user",
+      },
+    });
+    if (insErr) throw insErr;
+  }
+  return { ok: true };
 }

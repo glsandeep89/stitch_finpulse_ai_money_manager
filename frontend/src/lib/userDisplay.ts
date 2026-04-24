@@ -23,7 +23,9 @@ export function displayName(email: string | undefined): string {
 /** Short titles for the top bar when transaction search is hidden. */
 export const routePageTitle: Record<string, string> = {
   "/": "Overview",
+  "/transactions": "Transactions",
   "/creditcards": "Credit Cards",
+  "/subscriptions": "Recurring",
   "/investments": "Investments",
   "/mortgage": "Mortgage",
   "/insights": "Insights",

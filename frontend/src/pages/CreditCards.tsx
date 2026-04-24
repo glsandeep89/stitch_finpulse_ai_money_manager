@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { AiOutputCard, AiOutputEmpty } from "../components/ai/AiOutputCard";
-import Activity from "./Activity";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import type { AiOutputsResponse } from "../lib/aiOutputs";
@@ -42,15 +42,6 @@ type CreditCardSummary = {
     minimumDueDisplay: string;
     statementBalanceDisplay: string;
   }[];
-};
-
-type CalendarEvent = {
-  key: string;
-  date: string;
-  kind: "due" | "posted";
-  title: string;
-  subtitle: string;
-  amountLabel?: string;
 };
 
 type RefundRow = {
@@ -124,20 +115,6 @@ function normalizeName(value: string | null | undefined) {
   return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function toIsoDate(value: string) {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
-}
-
-function prettyDateLabel(dateIso: string) {
-  const d = new Date(`${dateIso}T00:00:00`);
-  return d.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 export default function CreditCards() {
   const { session } = useAuth();
@@ -154,6 +131,7 @@ export default function CreditCards() {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [rewardsStatus, setRewardsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [dismissedNudges, setDismissedNudges] = useState<Record<string, boolean>>({});
+  const [recurringView, setRecurringView] = useState<"monthly" | "all">("monthly");
 
   const load = useCallback(async () => {
     if (!session?.access_token) return;
@@ -425,47 +403,6 @@ export default function CreditCards() {
       .map(([month, spend]) => ({ month, spend }));
   }, [spendingForInsights]);
 
-  const paymentCalendar = useMemo(() => {
-    if (!ccSummary) return [] as { date: string; label: string; events: CalendarEvent[] }[];
-    const out: CalendarEvent[] = [];
-    for (const due of ccSummary.upcomingDueDates ?? []) {
-      const dueIso = toIsoDate(due.dueDisplay);
-      if (!dueIso) continue;
-      out.push({
-        key: `due-${due.account}-${dueIso}`,
-        date: dueIso,
-        kind: "due",
-        title: `${due.account} due`,
-        subtitle: `Minimum due ${due.minimumDueDisplay}`,
-        amountLabel: due.statementBalanceDisplay ? `Statement ${due.statementBalanceDisplay}` : undefined,
-      });
-    }
-    for (const p of ccSummary.postedPayments ?? []) {
-      const postedIso = toIsoDate(p.trans_date);
-      if (!postedIso) continue;
-      out.push({
-        key: `posted-${p.plaid_transaction_id}`,
-        date: postedIso,
-        kind: "posted",
-        title: p.merchant_name ?? "Posted payment",
-        subtitle: "Payment posted",
-        amountLabel: money(Math.abs(Number(p.amount))),
-      });
-    }
-    const grouped = new Map<string, CalendarEvent[]>();
-    for (const e of out) {
-      if (!grouped.has(e.date)) grouped.set(e.date, []);
-      grouped.get(e.date)!.push(e);
-    }
-    return [...grouped.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, events]) => ({
-        date,
-        label: prettyDateLabel(date),
-        events: events.sort((a, b) => a.kind.localeCompare(b.kind)),
-      }));
-  }, [ccSummary]);
-
   const setRefundStatus = async (id: string, status: RefundRow["status"]) => {
     if (!session?.access_token) return;
     try {
@@ -528,10 +465,10 @@ export default function CreditCards() {
           <p className="text-xs uppercase tracking-wide text-on-surface-variant">Spending this cycle</p>
           <p className="text-2xl font-headline font-bold mt-1">{money(spendingThisCycle)}</p>
         </div>
-        <a href="#cc-transactions" className={`${sectionShell("p-5 block hover:border-primary/35 transition-colors")}`}>
+        <a href="#cc-subscriptions" className={`${sectionShell("p-5 block hover:border-primary/35 transition-colors")}`}>
           <p className="text-xs uppercase tracking-wide text-on-surface-variant">Active recurring payments</p>
           <p className="text-2xl font-headline font-bold mt-1">{recurringPaymentsCount}</p>
-          <p className="text-[11px] text-primary mt-1">Open detailed transactions</p>
+          <p className="text-[11px] text-primary mt-1">Open recurring tracker</p>
         </a>
         <div className={`${sectionShell("p-5")}`}>
           <p className="text-xs uppercase tracking-wide text-on-surface-variant">Refunds this cycle</p>
@@ -540,7 +477,6 @@ export default function CreditCards() {
       </section>
 
       <nav className={`${sectionShell("p-3 flex flex-wrap gap-2")}`} aria-label="Credit card section shortcuts">
-        <a href="#cc-transactions" className="px-3 py-1.5 rounded-full bg-surface-container text-sm hover:bg-surface-container-high">Transactions</a>
         <a href="#cc-subscriptions" className="px-3 py-1.5 rounded-full bg-surface-container text-sm hover:bg-surface-container-high">Subscriptions</a>
         <a href="#cc-refunds" className="px-3 py-1.5 rounded-full bg-surface-container text-sm hover:bg-surface-container-high">Refunds</a>
       </nav>
@@ -575,42 +511,46 @@ export default function CreditCards() {
             </div>
 
             <div className="rounded-xl border border-outline-variant/10 p-4 bg-surface-container-low/40">
-              <h3 className="text-sm font-semibold mb-3">Payment calendar</h3>
-              {paymentCalendar.length === 0 ? (
-                <p className="text-xs text-on-surface-variant">No due-date or posted payment events available yet.</p>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Recurring tracker</h3>
+                <div className="flex rounded-full bg-surface-container p-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setRecurringView("monthly")}
+                    className={`px-2 py-1 rounded-full ${recurringView === "monthly" ? "bg-surface-container-lowest font-semibold" : "text-on-surface-variant"}`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecurringView("all")}
+                    className={`px-2 py-1 rounded-full ${recurringView === "all" ? "bg-surface-container-lowest font-semibold" : "text-on-surface-variant"}`}
+                  >
+                    All recurring
+                  </button>
+                </div>
+              </div>
+              {((data?.subscriptions ?? []).length === 0) ? (
+                <p className="text-xs text-on-surface-variant">No recurring transactions detected yet.</p>
               ) : (
-                <div className="space-y-3">
-                  {paymentCalendar.map((day) => (
-                    <div key={day.date} className="rounded-xl border border-outline-variant/15 bg-surface-container-lowest">
-                      <div className="px-3 py-2 border-b border-outline-variant/10 text-xs font-semibold text-on-surface-variant">
-                        {day.label}
+                <div className="space-y-2">
+                  {(data?.subscriptions ?? [])
+                    .filter((s) => recurringView === "all" || (s.frequency ?? "").toLowerCase().includes("month"))
+                    .sort((a, b) => String(a.next_payment_date ?? "").localeCompare(String(b.next_payment_date ?? "")))
+                    .slice(0, 12)
+                    .map((s) => (
+                      <div key={s.id} className="flex items-center justify-between rounded-lg border border-outline-variant/15 bg-surface-container-lowest px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium text-on-surface">{s.name}</p>
+                          <p className="text-xs text-on-surface-variant">
+                            {s.next_payment_date ? `${s.next_payment_date}` : "Next date unavailable"} · {s.frequency ?? "Recurring"}
+                          </p>
+                        </div>
+                        <p className="text-sm font-semibold text-on-surface">
+                          {s.amount != null ? money(Number(s.amount)) : "—"}
+                        </p>
                       </div>
-                      <div className="divide-y divide-outline-variant/10">
-                        {day.events.map((event) => (
-                          <div key={event.key} className="px-3 py-2 flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-medium text-on-surface">{event.title}</p>
-                              <p className="text-xs text-on-surface-variant">{event.subtitle}</p>
-                            </div>
-                            <div className="text-right">
-                              <span
-                                className={`text-[10px] px-2 py-0.5 rounded-full ${
-                                  event.kind === "due"
-                                    ? "bg-amber-100 text-amber-800"
-                                    : "bg-emerald-100 text-emerald-800"
-                                }`}
-                              >
-                                {event.kind === "due" ? "Due" : "Posted"}
-                              </span>
-                              {event.amountLabel ? (
-                                <p className="text-xs text-on-surface-variant mt-1">{event.amountLabel}</p>
-                              ) : null}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               )}
             </div>
@@ -655,9 +595,9 @@ export default function CreditCards() {
             ) : (
               <p className="text-sm text-on-surface-variant">No high-frequency merchant pattern yet this month.</p>
             )}
-            <a href="#cc-transactions" className="text-xs text-primary hover:underline mt-2 inline-block">
+            <Link to="/transactions" className="text-xs text-primary hover:underline mt-2 inline-block">
               Review transactions
-            </a>
+            </Link>
           </div>
           ) : null}
 
@@ -918,19 +858,14 @@ export default function CreditCards() {
         )}
       </section>
 
-      <section id="cc-transactions" className={`${sectionShell("p-4 md:p-5")}`}>
-        <div className="mb-4">
-          <h2 className="font-headline font-semibold text-lg">Transactions workspace</h2>
-          <p className="text-xs text-on-surface-variant">Full controls, labels, export, and AI tools for card activity.</p>
-        </div>
-        <Activity
-          title="Credit card spending"
-          subtitle="Full filter and export workspace for card transactions."
-          defaultCreditOnly
-          hideAnomalyCard
-          hideTopSummaryCards
-          hideAssistantTools
-        />
+      <section className={`${sectionShell("p-4 md:p-5")}`}>
+        <h2 className="font-headline font-semibold text-lg">Transactions workspace moved</h2>
+        <p className="text-xs text-on-surface-variant mt-1">
+          Credit-card transactions are now part of the centralized Transactions page.
+        </p>
+        <Link to="/transactions" className="text-sm text-primary hover:underline mt-2 inline-block">
+          Open Transactions
+        </Link>
       </section>
     </div>
   );

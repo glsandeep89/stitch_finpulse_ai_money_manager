@@ -583,7 +583,7 @@ export async function listSimplifinItemsForUser(userId: string) {
   }));
 }
 
-export async function unlinkSimplifinItemForUser(userId: string, itemId: string, deleteHistory: boolean) {
+export async function unlinkSimplifinItemForUser(userId: string, itemId: string) {
   const sb = getDb();
   const { data: item, error } = await sb
     .from("plaid_items")
@@ -603,7 +603,7 @@ export async function unlinkSimplifinItemForUser(userId: string, itemId: string,
   const linkedAccountIds = (accounts ?? []).map((a) => a.id as string);
   const accountIds = (accounts ?? []).map((a) => a.plaid_account_id as string);
 
-  if (deleteHistory && linkedAccountIds.length > 0) {
+  if (linkedAccountIds.length > 0) {
     const { error: txErr } = await sb
       .from("transactions")
       .delete()
@@ -636,5 +636,5 @@ export async function unlinkSimplifinItemForUser(userId: string, itemId: string,
   const { error: delErr } = await sb.from("plaid_items").delete().eq("id", itemId).eq("user_id", userId);
   if (delErr) throw delErr;
 
-  return { ok: true, deletedHistory: deleteHistory };
+  return { ok: true, deletedHistory: true };
 }

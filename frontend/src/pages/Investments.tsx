@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { AiOutputCard, AiOutputEmpty } from "../components/ai/AiOutputCard";
-import Activity from "./Activity";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import type { AiOutputsResponse } from "../lib/aiOutputs";
@@ -110,11 +110,15 @@ export default function Investments() {
         )}
       </section>
 
-      <Activity
-        title="Investment-related transactions"
-        subtitle="Filters and exports for all non-credit, non-escrow accounts."
-        defaultInvestmentScope
-      />
+      <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/15 p-5">
+        <h2 className="font-headline font-semibold mb-2">Transactions moved</h2>
+        <p className="text-sm text-on-surface-variant mb-3">
+          Investment-related transactions are now in the centralized Transactions page.
+        </p>
+        <Link to="/transactions" className="text-sm font-medium text-primary hover:underline">
+          Open Transactions
+        </Link>
+      </section>
     </div>
   );
 }

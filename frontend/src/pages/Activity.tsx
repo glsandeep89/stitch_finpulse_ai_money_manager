@@ -103,6 +103,10 @@ export default function Activity({
     null
   );
   const [anomalyRow, setAnomalyRow] = useState<AiOutputRow | null>(null);
+  const [groupView, setGroupView] = useState<"category" | "merchant">("category");
+  const [flowView, setFlowView] = useState<"expense" | "income">("expense");
+  const [recurringBusyTx, setRecurringBusyTx] = useState<string | null>(null);
+  const [recurringMarked, setRecurringMarked] = useState<Record<string, boolean>>({});
 
   const filtersRef = useRef({
     dateFrom,
@@ -341,6 +345,43 @@ export default function Activity({
       .slice(0, 2)
       .map(([name, amt]) => ({ name, pct: (amt / total) * 100 }));
   }, [filteredTxs]);
+
+  const groupedSpend = useMemo(() => {
+    const by = new Map<string, number>();
+    for (const t of filteredTxs) {
+      const amt = Number(t.amount);
+      if (flowView === "expense" && amt <= 0) continue;
+      if (flowView === "income" && amt >= 0) continue;
+      const key = groupView === "category" ? primaryCategory(t) : (t.merchant_name ?? "Unknown");
+      by.set(key, (by.get(key) ?? 0) + Math.abs(amt));
+    }
+    const total = [...by.values()].reduce((s, n) => s + n, 0);
+    return {
+      total,
+      rows: [...by.entries()]
+        .map(([name, amount]) => ({ name, amount, sharePct: total > 0 ? (amount / total) * 100 : 0 }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 12),
+    };
+  }, [filteredTxs, groupView, flowView]);
+
+  const setRecurringPreference = async (tx: Tx, isRecurring: boolean) => {
+    if (!session?.access_token) return;
+    setErr(null);
+    setRecurringBusyTx(tx.plaid_transaction_id);
+    try {
+      await api("/subscriptions/recurring-preference", {
+        method: "POST",
+        accessToken: session.access_token,
+        body: JSON.stringify({ plaid_transaction_id: tx.plaid_transaction_id, isRecurring }),
+      });
+      setRecurringMarked((prev) => ({ ...prev, [tx.plaid_transaction_id]: isRecurring }));
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to update recurring preference");
+    } finally {
+      setRecurringBusyTx(null);
+    }
+  };
 
   const saveLabel = async () => {
     if (!session?.access_token || !labelTxId.trim() || !labelText.trim()) return;
@@ -693,6 +734,65 @@ export default function Activity({
             </div>
           </div> : null}
 
+          <section className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow ring-1 ring-outline-variant/10">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h3 className="font-headline text-lg font-semibold text-on-surface">Spend breakdown</h3>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="flex rounded-lg border border-outline-variant/20 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setFlowView("expense")}
+                    className={`px-3 py-1.5 ${flowView === "expense" ? "bg-surface-container text-on-surface font-semibold" : "text-on-surface-variant"}`}
+                  >
+                    Expenses
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFlowView("income")}
+                    className={`px-3 py-1.5 ${flowView === "income" ? "bg-surface-container text-on-surface font-semibold" : "text-on-surface-variant"}`}
+                  >
+                    Income
+                  </button>
+                </div>
+                <div className="flex rounded-lg border border-outline-variant/20 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setGroupView("category")}
+                    className={`px-3 py-1.5 ${groupView === "category" ? "bg-surface-container text-on-surface font-semibold" : "text-on-surface-variant"}`}
+                  >
+                    Category
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGroupView("merchant")}
+                    className={`px-3 py-1.5 ${groupView === "merchant" ? "bg-surface-container text-on-surface font-semibold" : "text-on-surface-variant"}`}
+                  >
+                    Merchant
+                  </button>
+                </div>
+              </div>
+            </div>
+            {groupedSpend.rows.length === 0 ? (
+              <p className="text-sm text-on-surface-variant">No rows in current filter for this grouping.</p>
+            ) : (
+              <div className="space-y-3">
+                {groupedSpend.rows.map((row) => (
+                  <div key={row.name}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-medium text-on-surface">{row.name}</span>
+                      <span className="text-on-surface-variant">
+                        {row.amount.toLocaleString(undefined, { style: "currency", currency: "USD" })} ({row.sharePct.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-surface-container-high overflow-hidden">
+                      <div className="h-full bg-secondary-container rounded-full" style={{ width: `${Math.max(2, row.sharePct)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
           <div className="bg-surface-container-lowest rounded-xl ambient-shadow ring-1 ring-outline-variant/10 overflow-hidden">
             <div className="p-6 border-b border-surface-container-low flex justify-between items-center bg-surface-bright">
               <h3 className="font-headline text-lg font-bold text-on-surface">All transactions</h3>
@@ -763,12 +863,27 @@ export default function Activity({
                         <td className="px-6 py-5 font-body text-sm text-on-surface-variant">
                           {t.plaid_account_id ? accountMap[t.plaid_account_id] ?? "—" : "—"}
                         </td>
-                        <td
+                      <td
                           className={`px-6 py-5 font-body font-medium text-right ${
                             t.amount < 0 ? "text-on-tertiary-container" : "text-on-surface"
                           }`}
                         >
                           {t.amount.toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                        <div className="mt-1">
+                          <button
+                            type="button"
+                            disabled={recurringBusyTx === t.plaid_transaction_id}
+                            onClick={() =>
+                              void setRecurringPreference(
+                                t,
+                                !(recurringMarked[t.plaid_transaction_id] ?? false)
+                              )
+                            }
+                            className="text-[11px] text-primary hover:underline disabled:opacity-50"
+                          >
+                            {recurringMarked[t.plaid_transaction_id] ? "Recurring ✓" : "Mark recurring"}
+                          </button>
+                        </div>
                         </td>
                       </tr>
                     ))
