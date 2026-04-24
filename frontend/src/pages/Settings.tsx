@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, getApiBase } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
+import { SimplifinLinkButton } from "../components/SimplifinLinkButton";
 
 const ADVANCED_STORAGE_KEY = "finpulse_show_advanced_settings";
 
@@ -140,6 +141,24 @@ export default function Settings() {
     }
   };
 
+  const refreshAccounts = async () => {
+    if (!session?.access_token) return;
+    setErr(null);
+    setOk(null);
+    setRefreshAccountsBusy(true);
+    try {
+      await api("/plaid/accounts?refresh=true", {
+        accessToken: session.access_token,
+      });
+      setOk("Accounts refreshed from your bank (SimpleFIN).");
+      await load();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to refresh accounts");
+    } finally {
+      setRefreshAccountsBusy(false);
+    }
+  };
+
   const unlinkSelectedItem = async () => {
     if (!session?.access_token || !unlinkTarget) return;
     setErr(null);
@@ -211,7 +230,34 @@ export default function Settings() {
       </section>
 
       <section className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/10 shadow-ambient">
-        <h2 className="font-headline text-lg font-semibold text-on-surface mb-4">Linked bank connections</h2>
+        <h2 className="font-headline text-lg font-semibold text-on-surface mb-2">Linked bank connections</h2>
+        <p className="text-sm text-on-surface-variant font-body mb-4">
+          Connect with a SimpleFIN setup token, or pull the latest account names, types, and balances from
+          SimpleFIN.
+        </p>
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:items-start mb-6">
+          <SimplifinLinkButton
+            onLinked={() => {
+              void load();
+            }}
+          />
+          <div className="flex flex-col gap-1">
+            <button
+              type="button"
+              disabled={!session || refreshAccountsBusy}
+              onClick={() => void refreshAccounts()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-2 text-sm font-medium text-on-surface hover:bg-surface-container disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-lg" aria-hidden>
+                sync
+              </span>
+              {refreshAccountsBusy ? "Refreshing…" : "Refresh accounts"}
+            </button>
+            <p className="text-xs text-on-surface-variant max-w-md">
+              Use this if account types still show as &quot;other&quot; or balances look stale.
+            </p>
+          </div>
+        </div>
         {simplifinItems.length === 0 ? (
           <p className="text-sm text-on-surface-variant font-body">No bank connections linked (SimpleFIN).</p>
         ) : (

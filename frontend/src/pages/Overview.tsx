@@ -9,8 +9,8 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { Link } from "react-router-dom";
 import { AiOutputCard, AiOutputEmpty } from "../components/ai/AiOutputCard";
-import { SimplifinLinkButton } from "../components/SimplifinLinkButton";
 import { api } from "../lib/api";
 import type { AiOutputRow, AiOutputsResponse } from "../lib/aiOutputs";
 import { useAuth } from "../contexts/AuthContext";
@@ -218,15 +218,14 @@ export default function Overview() {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="space-y-1">
         <h1 className="font-headline text-3xl font-bold text-on-background tracking-tight">Overview</h1>
-        <SimplifinLinkButton
-          onLinked={() => {
-            void loadStatic();
-            void loadCashFlow();
-            void loadAiOutputs();
-          }}
-        />
+        <p className="text-sm text-on-surface-variant font-body">
+          <Link to="/settings" className="text-primary font-medium hover:underline">
+            Settings
+          </Link>{" "}
+          — link a bank (SimpleFIN) or refresh account types and balances.
+        </p>
       </div>
       {err ? <p className="text-sm text-error font-body">{err}</p> : null}
       {loadingStatic ? (
