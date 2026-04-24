@@ -5,6 +5,11 @@
 import crypto from "crypto";
 import { getDb } from "../db/supabase.js";
 import { config } from "../../config.js";
+import {
+  connectionLabel,
+  inferPlaidStyleAccountType,
+  type SimplefinConnection,
+} from "./simplifinAccountClassification.js";
 
 const DEFAULT_SIGNUP_URL = "https://bridge.simplefin.org/simplefin/create";
 
@@ -19,15 +24,21 @@ type SimplefinTx = {
 type SimplefinAccount = {
   id?: string;
   name?: string;
+  /** v2: links to Account Set `connections` */
+  conn_id?: string;
   org?: { id?: string; name?: string };
+  currency?: string;
   balance?: number | string;
+  "available-balance"?: number | string;
   "balance-date"?: number | string;
   transactions?: SimplefinTx[];
   errlist?: unknown[];
+  extra?: Record<string, unknown>;
 };
 
 type SimplefinAccountsPayload = {
   accounts?: SimplefinAccount[];
+  connections?: SimplefinConnection[];
   errors?: string[];
   errlist?: { code?: string; msg?: string }[];
 };
@@ -253,23 +264,31 @@ function toNumber(v: unknown): number {
 async function upsertLinkedFromSimplefin(
   userId: string,
   itemUuid: string,
-  itemKey: string,
+  _itemKey: string,
   acc: SimplefinAccount,
-  accountId: string
+  accountId: string,
+  payload: SimplefinAccountsPayload | undefined
 ) {
   const sb = getDb();
   const bal = acc.balance != null ? toNumber(acc.balance) : null;
+  const avail =
+    acc["available-balance"] != null && acc["available-balance"] !== ""
+      ? toNumber(acc["available-balance"])
+      : null;
+  const connHint =
+    connectionLabel(payload?.connections, acc.conn_id) ?? acc.org?.name ?? acc.org?.id ?? null;
+  const { type, subtype } = inferPlaidStyleAccountType(acc, { connectionLabel: connHint });
   const row = {
     user_id: userId,
     plaid_item_id: itemUuid,
     plaid_account_id: accountId,
     name: acc.name ?? "Account",
     mask: null,
-    type: "other",
-    subtype: acc.org?.name ?? acc.org?.id ?? null,
+    type,
+    subtype,
     balance_current: bal,
-    balance_available: null,
-    iso_currency_code: "USD",
+    balance_available: avail,
+    iso_currency_code: typeof acc.currency === "string" && acc.currency.length ? acc.currency : "USD",
     raw: acc as unknown as Record<string, unknown>,
   };
   const { error } = await sb.from("linked_accounts").upsert(row, {
@@ -304,7 +323,7 @@ async function upsertTransactionsFromPayload(
     }
     const accountId = stableAccountId(acc);
     const linkedId =
-      accountMap.get(accountId) ?? (await ensureAccountLinked(userId, itemUuid, itemKey, accountId, acc));
+      accountMap.get(accountId) ?? (await ensureAccountLinked(userId, itemUuid, itemKey, accountId, acc, payload));
     if (!linkedId) continue;
 
     const txs = acc.transactions ?? [];
@@ -375,7 +394,7 @@ export async function exchangePublicToken(userId: string, publicToken: string) {
       for (const acc of payload.accounts ?? []) {
         const accountId = stableAccountId(acc);
         seenAcct.add(accountId);
-        await upsertLinkedFromSimplefin(userId, itemUuid, itemKey, acc, accountId);
+        await upsertLinkedFromSimplefin(userId, itemUuid, itemKey, acc, accountId, payload);
       }
       await upsertTransactionsFromPayload(userId, itemUuid, itemKey, payload);
     }
@@ -415,7 +434,7 @@ export async function refreshAccountsFromSimplifin(userId: string) {
     });
     for (const acc of payload.accounts ?? []) {
       const accountId = stableAccountId(acc);
-      await upsertLinkedFromSimplefin(userId, item.id as string, item.item_id as string, acc, accountId);
+      await upsertLinkedFromSimplefin(userId, item.id as string, item.item_id as string, acc, accountId, payload);
     }
   }
 
@@ -490,9 +509,10 @@ async function ensureAccountLinked(
   itemUuid: string,
   _itemKey: string,
   accountId: string,
-  acc: SimplefinAccount
+  acc: SimplefinAccount,
+  payload: SimplefinAccountsPayload
 ): Promise<string | null> {
-  await upsertLinkedFromSimplefin(userId, itemUuid, _itemKey, acc, accountId);
+  await upsertLinkedFromSimplefin(userId, itemUuid, _itemKey, acc, accountId, payload);
   const sb = getDb();
   const { data: row } = await sb
     .from("linked_accounts")
