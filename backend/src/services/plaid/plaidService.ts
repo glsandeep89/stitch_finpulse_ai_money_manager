@@ -29,7 +29,11 @@ type SimplefinAccount = {
 type SimplefinAccountsPayload = {
   accounts?: SimplefinAccount[];
   errors?: string[];
+  errlist?: { code?: string; msg?: string }[];
 };
+
+/** Bridge rejects ranges over ~45 days (gen.api); use this as max seconds per request. */
+const SIMPLEFIN_MAX_RANGE_SEC = 44 * 86400;
 
 export function getSimplefinConnectInfo() {
   return {
@@ -105,10 +109,44 @@ async function simplefinGetAccounts(
   });
   const text = await res.text();
   if (!res.ok) throw new Error(text || `SimpleFIN accounts request failed (${res.status})`);
+  let payload: SimplefinAccountsPayload;
   try {
-    return JSON.parse(text) as SimplefinAccountsPayload;
+    payload = JSON.parse(text) as SimplefinAccountsPayload;
   } catch {
     throw new Error("SimpleFIN returned non-JSON from /accounts");
+  }
+  const errs = payload.errlist ?? [];
+  const hasAccounts = (payload.accounts?.length ?? 0) > 0;
+  if (errs.length && !hasAccounts) {
+    const msg = errs.map((e) => e.msg ?? e.code ?? "?").join("; ");
+    throw new Error(msg || "SimpleFIN /accounts returned no accounts");
+  }
+  if (errs.length) {
+    console.warn("SimpleFIN /accounts errlist (partial data)", errs);
+  }
+  return payload;
+}
+
+/** Split [rangeStart, rangeEnd] UTC calendar days into ≤44-day spans (SimpleFIN Bridge limit). */
+async function simplefinForEachAccountChunk(
+  accessUrl: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  baseQuery: Record<string, string | undefined>,
+  onChunk: (payload: SimplefinAccountsPayload) => Promise<void>
+): Promise<void> {
+  const endExclusive = Number(unixExclusiveEndAfterUtcDaySec(rangeEnd));
+  let startSec = Number(unixStartOfUtcDaySec(rangeStart));
+  while (startSec < endExclusive) {
+    const chunkEnd = Math.min(startSec + SIMPLEFIN_MAX_RANGE_SEC, endExclusive);
+    if (chunkEnd <= startSec) break;
+    const payload = await simplefinGetAccounts(accessUrl, {
+      ...baseQuery,
+      "start-date": String(startSec),
+      "end-date": String(chunkEnd),
+    });
+    await onChunk(payload);
+    startSec = chunkEnd;
   }
 }
 
@@ -271,21 +309,22 @@ export async function exchangePublicToken(userId: string, publicToken: string) {
 
   const end = new Date();
   const start = new Date(end.getTime() - 89 * 86400000);
-  const payload = await simplefinGetAccounts(accessUrl, {
-    version: "2",
-    "start-date": unixStartOfUtcDaySec(start),
-    "end-date": unixExclusiveEndAfterUtcDaySec(end),
-    pending: "1",
-  });
-
-  let count = 0;
-  for (const acc of payload.accounts ?? []) {
-    const accountId = stableAccountId(acc);
-    await upsertLinkedFromSimplefin(userId, itemUuid, itemKey, acc, accountId);
-    count++;
-  }
-
-  await upsertTransactionsFromPayload(userId, itemUuid, itemKey, payload);
+  const seenAcct = new Set<string>();
+  await simplefinForEachAccountChunk(
+    accessUrl,
+    start,
+    end,
+    { version: "2", pending: "1" },
+    async (payload) => {
+      for (const acc of payload.accounts ?? []) {
+        const accountId = stableAccountId(acc);
+        seenAcct.add(accountId);
+        await upsertLinkedFromSimplefin(userId, itemUuid, itemKey, acc, accountId);
+      }
+      await upsertTransactionsFromPayload(userId, itemUuid, itemKey, payload);
+    }
+  );
+  const count = seenAcct.size;
 
   await sb
     .from("plaid_items")
@@ -353,16 +392,16 @@ export async function syncTransactionsForUser(userId: string) {
         if (d < end) start = d;
       }
     }
-    const payload = await simplefinGetAccounts(accessUrl, {
-      version: "2",
-      "start-date": unixStartOfUtcDaySec(start),
-      "end-date": unixExclusiveEndAfterUtcDaySec(end),
-      pending: "1",
-    });
-
-    await upsertTransactionsFromPayload(userId, item.id as string, item.item_id as string, payload);
-    const txsN = (payload.accounts ?? []).reduce((n, a) => n + (a.transactions?.length ?? 0), 0);
-    added += txsN;
+    await simplefinForEachAccountChunk(
+      accessUrl,
+      start,
+      end,
+      { version: "2", pending: "1" },
+      async (payload) => {
+        await upsertTransactionsFromPayload(userId, item.id as string, item.item_id as string, payload);
+        added += (payload.accounts ?? []).reduce((n, a) => n + (a.transactions?.length ?? 0), 0);
+      }
+    );
 
     await sb
       .from("plaid_items")
