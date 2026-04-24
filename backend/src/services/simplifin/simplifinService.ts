@@ -80,32 +80,47 @@ function parsePosted(v: unknown): string {
   return ymd(new Date());
 }
 
-function parseAccessAuth(accessUrl: string) {
-  const raw = accessUrl.trim();
+/** Trim BOM/quotes/newlines from claim/access URL bodies (Bridge returns plain text). */
+function normalizeSfinUrl(text: string): string {
+  let s = text.trim().replace(/^\uFEFF/, "").replace(/\r|\n/g, "");
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+}
+
+/**
+ * Split stored access URL into origin+path prefix and Basic credentials.
+ * Do not decodeURIComponent `username`/`password` — the WHATWG URL parser already decoded once;
+ * double-decoding breaks passwords that contain `%`.
+ */
+function parseSfinAccessForApi(accessUrl: string): { baseUrl: string; user: string; pass: string } {
+  const raw = normalizeSfinUrl(accessUrl);
   const u = new URL(raw);
-  const user = decodeURIComponent(u.username || "");
-  const pass = decodeURIComponent(u.password || "");
-  if (!user || !pass) throw new Error("SimpleFIN access URL is missing credentials.");
-  const base = `${u.protocol}//${u.host}${u.pathname}`.replace(/\/$/, "");
-  const basic = Buffer.from(`${user}:${pass}`).toString("base64");
-  return { base, basic };
+  const user = u.username;
+  const pass = u.password;
+  if (!user || !pass) {
+    throw new Error("SimpleFIN access URL is missing credentials.");
+  }
+  const pathPrefix = u.pathname.replace(/\/$/, "");
+  const baseUrl = `${u.protocol}//${u.host}${pathPrefix}`;
+  return { baseUrl, user, pass };
 }
 
 async function simplefinGetAccounts(
   accessUrl: string,
   query: Record<string, string | undefined>
 ): Promise<SimplefinAccountsPayload> {
-  const { base, basic } = parseAccessAuth(accessUrl);
+  const { baseUrl, user, pass } = parseSfinAccessForApi(accessUrl);
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(query)) {
     if (v != null && v !== "") params.set(k, v);
   }
-  const url = `${base}/accounts?${params.toString()}`;
+  const url = `${baseUrl}/accounts?${params.toString()}`;
+  const basic = Buffer.from(`${user}:${pass}`, "utf8").toString("base64");
   const res = await fetch(url, {
-    headers: {
-      Authorization: `Basic ${basic}`,
-      Accept: "application/json",
-    },
+    headers: { Accept: "application/json", Authorization: `Basic ${basic}` },
+    redirect: "follow",
   });
   const text = await res.text();
   if (!res.ok) throw new Error(text || `SimpleFIN accounts request failed (${res.status})`);
@@ -118,7 +133,11 @@ async function simplefinGetAccounts(
   const errs = payload.errlist ?? [];
   const hasAccounts = (payload.accounts?.length ?? 0) > 0;
   if (errs.length && !hasAccounts) {
-    const msg = errs.map((e) => e.msg ?? e.code ?? "?").join("; ");
+    let msg = errs.map((e) => e.msg ?? e.code ?? "?").join("; ");
+    if (errs.some((e) => e.code === "gen.auth")) {
+      msg +=
+        " Setup tokens are one-time: create a fresh token in SimpleFIN Bridge, finish any bank login/MFA there, then paste again.";
+    }
     throw new Error(msg || "SimpleFIN /accounts returned no accounts");
   }
   if (errs.length) {
@@ -164,9 +183,12 @@ export async function claimSimplefinSetupToken(setupTokenBase64: string): Promis
   const res = await fetch(claimUrl, {
     method: "POST",
     headers: { "Content-Length": "0" },
+    redirect: "follow",
   });
-  const accessUrl = (await res.text()).trim();
-  if (!res.ok) throw new Error(accessUrl || `SimpleFIN claim failed (${res.status})`);
+  const accessUrl = normalizeSfinUrl(await res.text());
+  if (!res.ok) {
+    throw new Error(accessUrl || `SimpleFIN claim failed (${res.status})`);
+  }
   if (!/^https?:\/\//i.test(accessUrl)) {
     throw new Error("SimpleFIN claim did not return an access URL.");
   }
