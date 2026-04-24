@@ -9,7 +9,6 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { Link } from "react-router-dom";
 import { AiOutputCard, AiOutputEmpty } from "../components/ai/AiOutputCard";
 import { api } from "../lib/api";
 import type { AiOutputRow, AiOutputsResponse } from "../lib/aiOutputs";
@@ -77,6 +76,7 @@ export default function Overview() {
   const [loadingCf, setLoadingCf] = useState(true);
   const [budgetAlerts, setBudgetAlerts] = useState<{ category: string; pct?: number }[]>([]);
   const [aiByFamily, setAiByFamily] = useState<AiOutputsResponse["byFamily"] | null>(null);
+  const [refreshAccountsBusy, setRefreshAccountsBusy] = useState(false);
 
   const [chartPreset, setChartPreset] = useState<ChartPreset>("30d");
   const [dateFrom, setDateFrom] = useState(() => presetDateRange(30).from);
@@ -164,6 +164,24 @@ export default function Overview() {
     }
   }, [session?.access_token, dateFrom, dateTo]);
 
+  const refreshAccounts = useCallback(async () => {
+    if (!session?.access_token) return;
+    setErr(null);
+    setRefreshAccountsBusy(true);
+    try {
+      await api("/plaid/accounts?refresh=true", {
+        accessToken: session.access_token,
+      });
+      await loadStatic();
+      void loadCashFlow();
+      void loadAiOutputs();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to refresh accounts");
+    } finally {
+      setRefreshAccountsBusy(false);
+    }
+  }, [session?.access_token, loadStatic, loadCashFlow, loadAiOutputs]);
+
   useEffect(() => {
     loadStatic();
   }, [loadStatic]);
@@ -218,14 +236,19 @@ export default function Overview() {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="space-y-1">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="font-headline text-3xl font-bold text-on-background tracking-tight">Overview</h1>
-        <p className="text-sm text-on-surface-variant font-body">
-          <Link to="/settings" className="text-primary font-medium hover:underline">
-            Settings
-          </Link>{" "}
-          — link a bank (SimpleFIN) or refresh account types and balances.
-        </p>
+        <button
+          type="button"
+          disabled={!session || refreshAccountsBusy}
+          onClick={() => void refreshAccounts()}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-2 text-sm font-medium text-on-surface hover:bg-surface-container disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-lg" aria-hidden>
+            sync
+          </span>
+          {refreshAccountsBusy ? "Refreshing…" : "Refresh accounts"}
+        </button>
       </div>
       {err ? <p className="text-sm text-error font-body">{err}</p> : null}
       {loadingStatic ? (
