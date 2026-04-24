@@ -41,7 +41,7 @@ jobsRouter.post("/networth-snapshot", authMiddleware, async (req, res) => {
   }
 });
 
-/** Cron: recompute modular AI outputs for every user with a linked Plaid item. */
+/** Cron: recompute modular AI outputs for every user with a linked financial connection. */
 jobsRouter.post("/refresh-ai-modules", cronAuth, async (_req, res) => {
   try {
     const sb = getDb();

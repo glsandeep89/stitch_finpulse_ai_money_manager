@@ -44,14 +44,23 @@ export async function api<T = unknown>(
   const r = await fetch(`${getApiBase()}${path}`, { ...opts, headers });
   const text = await r.text();
   if (!r.ok) {
-    let message = text || r.statusText;
+    let detail = text || r.statusText || "Unknown error";
     try {
-      const j = JSON.parse(text) as { error?: string };
-      if (typeof j.error === "string") message = j.error;
+      const j = JSON.parse(text) as { error?: string; message?: string };
+      if (typeof j.error === "string" && j.error.trim()) detail = j.error;
+      else if (typeof j.message === "string" && j.message.trim()) detail = j.message;
     } catch {
       /* keep raw */
     }
-    throw new Error(message);
+    const generic = /^Request failed with status code \d+$/i.test(detail.trim());
+    if (generic) {
+      detail = [
+        "The server returned a generic HTTP error (no FinPulse JSON body).",
+        "Confirm DevTools → Network → the failing request URL matches your API (not the static site),",
+        "rebuild the web app with VITE_API_URL, and redeploy the API so it matches this repo (SimpleFIN).",
+      ].join(" ");
+    }
+    throw new Error(`${r.status}: ${detail}`);
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
 }

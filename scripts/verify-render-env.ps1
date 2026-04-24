@@ -56,7 +56,7 @@ if ($finpulse.Count -eq 0) {
 # NODE_ENV is often injected by Render; may not appear in this API list.
 $requiredApi = @(
   "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DB_SCHEMA",
-  "PLAID_CLIENT_ID", "PLAID_SECRET", "PLAID_ENV", "FRONTEND_URLS", "GEMINI_API_KEY"
+  "FRONTEND_URLS", "GEMINI_API_KEY"
 )
 $requiredWeb = @("VITE_API_URL", "VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY")
 

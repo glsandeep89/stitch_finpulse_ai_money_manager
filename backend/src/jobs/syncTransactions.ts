@@ -1,7 +1,7 @@
 import { getDb } from "../services/db/supabase.js";
 import { syncTransactionsForUser } from "../services/plaid/plaidService.js";
 
-/** Sync transactions for all users that have Plaid items (cron). */
+/** Sync transactions for all users that have linked SimpleFIN / legacy provider items (cron). */
 export async function syncTransactionsAllUsers() {
   const sb = getDb();
   const { data: userIds, error } = await sb

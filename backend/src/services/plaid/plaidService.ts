@@ -1,27 +1,244 @@
-import { CountryCode, Products, type AccountBase, type Transaction } from "plaid";
-import { plaidClient } from "./plaidClient.js";
+/**
+ * Financial aggregation via SimpleFIN Bridge (https://bridge.simplefin.org).
+ * Legacy route prefix remains `/plaid/*` and DB columns keep `plaid_*` names for compatibility.
+ */
+import crypto from "crypto";
 import { getDb } from "../db/supabase.js";
+import { config } from "../../config.js";
 
-const PRODUCTS = [Products.Transactions, Products.Identity];
+const DEFAULT_SIGNUP_URL = "https://bridge.simplefin.org/simplefin/create";
 
-export async function createLinkToken(userId: string, redirectUri?: string) {
-  const res = await plaidClient.linkTokenCreate({
-    user: { client_user_id: userId },
-    client_name: "FinPulse",
-    products: PRODUCTS,
-    country_codes: [CountryCode.Us],
-    language: "en",
-    redirect_uri: redirectUri,
-  });
-  return { link_token: res.data.link_token, expiration: res.data.expiration };
+type SimplefinTx = {
+  id?: string;
+  posted?: number | string;
+  amount?: number | string;
+  description?: string;
+  pending?: boolean;
+};
+
+type SimplefinAccount = {
+  id?: string;
+  name?: string;
+  org?: { id?: string; name?: string };
+  balance?: number | string;
+  "balance-date"?: number | string;
+  transactions?: SimplefinTx[];
+  errlist?: unknown[];
+};
+
+type SimplefinAccountsPayload = {
+  accounts?: SimplefinAccount[];
+  errors?: string[];
+};
+
+export function getSimplefinConnectInfo() {
+  return {
+    provider: "simplefin",
+    /** Present on current API; missing on stale Plaid-only deployments. */
+    connect_api_version: 2 as const,
+    signup_url: config.simplefinBridgeSignupUrl || DEFAULT_SIGNUP_URL,
+    help:
+      "Open the signup URL, create a SimpleFIN setup token, paste it in FinPulse, then we exchange it once for a private access URL stored on your account.",
+  };
 }
 
-export async function exchangePublicToken(userId: string, publicToken: string) {
-  const ex = await plaidClient.itemPublicTokenExchange({
-    public_token: publicToken,
+function shaShort(...parts: string[]) {
+  return crypto.createHash("sha256").update(parts.join("|")).digest("hex").slice(0, 24);
+}
+
+function ymd(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+function parsePosted(v: unknown): string {
+  if (typeof v === "number" && Number.isFinite(v)) {
+    const ms = v > 1e12 ? v : v * 1000;
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+  if (typeof v === "string") {
+    if (/^\d+$/.test(v)) {
+      const n = Number(v);
+      const ms = n > 1e12 ? n : n * 1000;
+      return new Date(ms).toISOString().slice(0, 10);
+    }
+    if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+  }
+  return ymd(new Date());
+}
+
+function parseAccessAuth(accessUrl: string) {
+  const raw = accessUrl.trim();
+  const u = new URL(raw);
+  const user = decodeURIComponent(u.username || "");
+  const pass = decodeURIComponent(u.password || "");
+  if (!user || !pass) throw new Error("SimpleFIN access URL is missing credentials.");
+  const base = `${u.protocol}//${u.host}${u.pathname}`.replace(/\/$/, "");
+  const basic = Buffer.from(`${user}:${pass}`).toString("base64");
+  return { base, basic };
+}
+
+async function simplefinGetAccounts(
+  accessUrl: string,
+  query: Record<string, string | undefined>
+): Promise<SimplefinAccountsPayload> {
+  const { base, basic } = parseAccessAuth(accessUrl);
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) {
+    if (v != null && v !== "") params.set(k, v);
+  }
+  const url = `${base}/accounts?${params.toString()}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Basic ${basic}`,
+      Accept: "application/json",
+    },
   });
-  const accessToken = ex.data.access_token;
-  const itemId = ex.data.item_id;
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || `SimpleFIN accounts request failed (${res.status})`);
+  try {
+    return JSON.parse(text) as SimplefinAccountsPayload;
+  } catch {
+    throw new Error("SimpleFIN returned non-JSON from /accounts");
+  }
+}
+
+export async function claimSimplefinSetupToken(setupTokenBase64: string): Promise<string> {
+  const trimmed = setupTokenBase64.trim();
+  let claimUrl: string;
+  try {
+    claimUrl = Buffer.from(trimmed, "base64").toString("utf8").trim();
+  } catch {
+    throw new Error("Invalid setup token (expected base64).");
+  }
+  if (!/^https?:\/\//i.test(claimUrl)) {
+    throw new Error("Decoded setup token is not a valid claim URL.");
+  }
+  const res = await fetch(claimUrl, {
+    method: "POST",
+    headers: { "Content-Length": "0" },
+  });
+  const accessUrl = (await res.text()).trim();
+  if (!res.ok) throw new Error(accessUrl || `SimpleFIN claim failed (${res.status})`);
+  if (!/^https?:\/\//i.test(accessUrl)) {
+    throw new Error("SimpleFIN claim did not return an access URL.");
+  }
+  return accessUrl;
+}
+
+function stableAccountId(acc: SimplefinAccount): string {
+  const orgId = acc.org?.id ?? acc.org?.name ?? "org";
+  if (acc.id && String(acc.id).trim()) return `sf_${String(acc.id).trim()}`;
+  return `sf_${shaShort("acct", orgId, acc.name ?? "unnamed")}`;
+}
+
+function stableTxId(accountId: string, tx: SimplefinTx, idx: number): string {
+  if (tx.id && String(tx.id).trim()) return `sf_${accountId}_${String(tx.id).trim()}`;
+  const posted = String(tx.posted ?? "");
+  const amt = String(tx.amount ?? "");
+  const desc = String(tx.description ?? "");
+  return `sf_${accountId}_${shaShort(posted, amt, desc, String(idx))}`;
+}
+
+function toNumber(v: unknown): number {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return 0;
+}
+
+async function upsertLinkedFromSimplefin(
+  userId: string,
+  itemUuid: string,
+  itemKey: string,
+  acc: SimplefinAccount,
+  accountId: string
+) {
+  const sb = getDb();
+  const bal = acc.balance != null ? toNumber(acc.balance) : null;
+  const row = {
+    user_id: userId,
+    plaid_item_id: itemUuid,
+    plaid_account_id: accountId,
+    name: acc.name ?? "Account",
+    mask: null,
+    type: "other",
+    subtype: acc.org?.name ?? acc.org?.id ?? null,
+    balance_current: bal,
+    balance_available: null,
+    iso_currency_code: "USD",
+    raw: acc as unknown as Record<string, unknown>,
+  };
+  const { error } = await sb.from("linked_accounts").upsert(row, {
+    onConflict: "user_id,plaid_account_id",
+  });
+  if (error) throw error;
+}
+
+type CursorState = { lastEnd?: string };
+
+function parseCursor(raw: string | null | undefined): CursorState | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as CursorState;
+  } catch {
+    return null;
+  }
+}
+
+async function upsertTransactionsFromPayload(
+  userId: string,
+  itemUuid: string,
+  itemKey: string,
+  payload: SimplefinAccountsPayload
+) {
+  const sb = getDb();
+  const accountMap = await loadAccountMap(userId);
+
+  for (const acc of payload.accounts ?? []) {
+    if (Array.isArray(acc.errlist) && acc.errlist.length) {
+      // Surface first structured error as soft warning in logs only
+      console.warn("SimpleFIN account errlist", acc.name, acc.errlist);
+    }
+    const accountId = stableAccountId(acc);
+    const linkedId =
+      accountMap.get(accountId) ?? (await ensureAccountLinked(userId, itemUuid, itemKey, accountId, acc));
+    if (!linkedId) continue;
+
+    const txs = acc.transactions ?? [];
+    for (let i = 0; i < txs.length; i++) {
+      const t = txs[i]!;
+      const txId = stableTxId(accountId, t, i);
+      const row = {
+        user_id: userId,
+        linked_account_id: linkedId,
+        plaid_transaction_id: txId,
+        plaid_account_id: accountId,
+        amount: toNumber(t.amount),
+        trans_date: parsePosted(t.posted),
+        authorized_date: null,
+        merchant_name: t.description ?? null,
+        merchant_entity_id: null,
+        category: null,
+        pending: Boolean(t.pending),
+        payment_channel: "other",
+        raw: t as unknown as Record<string, unknown>,
+      };
+      const { error } = await sb.from("transactions").upsert(row, {
+        onConflict: "user_id,plaid_transaction_id",
+      });
+      if (error) throw error;
+    }
+  }
+}
+
+/**
+ * `publicToken` is the SimpleFIN **setup token** (base64) from the Bridge UI.
+ */
+export async function exchangePublicToken(userId: string, publicToken: string) {
+  const accessUrl = await claimSimplefinSetupToken(publicToken);
+  const itemKey = `simplefin-${crypto.randomUUID()}`;
 
   const sb = getDb();
   const { data: itemRow, error: itemErr } = await sb
@@ -29,8 +246,9 @@ export async function exchangePublicToken(userId: string, publicToken: string) {
     .upsert(
       {
         user_id: userId,
-        item_id: itemId,
-        access_token: accessToken,
+        item_id: itemKey,
+        access_token: accessUrl,
+        transactions_cursor: null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id,item_id" }
@@ -39,44 +257,35 @@ export async function exchangePublicToken(userId: string, publicToken: string) {
     .single();
 
   if (itemErr) throw itemErr;
+  const itemUuid = itemRow!.id as string;
 
-  const plaidItemUuid = itemRow!.id as string;
+  const end = new Date();
+  const start = new Date(end.getTime() - 89 * 86400000);
+  const payload = await simplefinGetAccounts(accessUrl, {
+    version: "2",
+    "start-date": ymd(start),
+    "end-date": ymd(end),
+    pending: "true",
+  });
 
-  const accountsRes = await plaidClient.accountsGet({ access_token: accessToken });
-  const accounts = accountsRes.data.accounts;
-
-  for (const a of accounts) {
-    await upsertLinkedAccount(userId, plaidItemUuid, itemId, a);
+  let count = 0;
+  for (const acc of payload.accounts ?? []) {
+    const accountId = stableAccountId(acc);
+    await upsertLinkedFromSimplefin(userId, itemUuid, itemKey, acc, accountId);
+    count++;
   }
 
-  return { item_id: itemId, accounts_synced: accounts.length };
-}
+  await upsertTransactionsFromPayload(userId, itemUuid, itemKey, payload);
 
-async function upsertLinkedAccount(
-  userId: string,
-  plaidItemUuid: string,
-  itemId: string,
-  account: AccountBase
-) {
-  const sb = getDb();
-  const row = {
-    user_id: userId,
-    plaid_item_id: plaidItemUuid,
-    plaid_account_id: account.account_id,
-    name: account.name,
-    mask: account.mask ?? null,
-    type: account.type,
-    subtype: account.subtype ?? null,
-    balance_current: account.balances.current ?? null,
-    balance_available: account.balances.available ?? null,
-    iso_currency_code: account.balances.iso_currency_code ?? null,
-    raw: account as unknown as Record<string, unknown>,
-  };
+  await sb
+    .from("plaid_items")
+    .update({
+      transactions_cursor: JSON.stringify({ lastEnd: ymd(end) } satisfies CursorState),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", itemUuid);
 
-  const { error } = await sb.from("linked_accounts").upsert(row, {
-    onConflict: "user_id,plaid_account_id",
-  });
-  if (error) throw error;
+  return { item_id: itemKey, accounts_synced: count };
 }
 
 export async function refreshAccountsFromPlaid(userId: string) {
@@ -89,27 +298,23 @@ export async function refreshAccountsFromPlaid(userId: string) {
   if (error) throw error;
   if (!items?.length) return { accounts: [] as Record<string, unknown>[] };
 
-  const all: Record<string, unknown>[] = [];
+  const end = new Date();
+  const start = new Date(end.getTime() - 30 * 86400000);
+
   for (const item of items) {
-    const res = await plaidClient.accountsGet({
-      access_token: item.access_token as string,
+    const accessUrl = item.access_token as string;
+    const payload = await simplefinGetAccounts(accessUrl, {
+      version: "2",
+      "start-date": ymd(start),
+      "end-date": ymd(end),
     });
-    for (const a of res.data.accounts) {
-      await upsertLinkedAccount(
-        userId,
-        item.id as string,
-        item.item_id as string,
-        a
-      );
-      all.push(a as unknown as Record<string, unknown>);
+    for (const acc of payload.accounts ?? []) {
+      const accountId = stableAccountId(acc);
+      await upsertLinkedFromSimplefin(userId, item.id as string, item.item_id as string, acc, accountId);
     }
   }
 
-  const { data: dbAccounts } = await sb
-    .from("linked_accounts")
-    .select("*")
-    .eq("user_id", userId);
-
+  const { data: dbAccounts } = await sb.from("linked_accounts").select("*").eq("user_id", userId);
   return { accounts: dbAccounts ?? [] };
 }
 
@@ -123,60 +328,45 @@ export async function syncTransactionsForUser(userId: string) {
   if (error) throw error;
   if (!items?.length) return { added: 0, modified: 0, removed: 0 };
 
-  let totalAdded = 0;
-  let totalModified = 0;
-  let totalRemoved = 0;
-
-  const accountMap = await loadAccountMap(userId);
+  const end = new Date();
+  const endStr = ymd(end);
+  let added = 0;
 
   for (const item of items) {
-    let cursor = (item.transactions_cursor as string | null) ?? undefined;
-    let hasMore = true;
-
-    while (hasMore) {
-      const res = await plaidClient.transactionsSync({
-        access_token: item.access_token as string,
-        cursor: cursor ?? undefined,
-        count: 200,
-      });
-
-      const d = res.data;
-      hasMore = d.has_more;
-      cursor = d.next_cursor;
-
-      for (const t of d.added) {
-        await upsertTransaction(userId, accountMap, t, item.id as string);
-        totalAdded++;
-      }
-      for (const t of d.modified) {
-        await upsertTransaction(userId, accountMap, t, item.id as string);
-        totalModified++;
-      }
-      for (const r of d.removed) {
-        await sb
-          .from("transactions")
-          .delete()
-          .eq("user_id", userId)
-          .eq("plaid_transaction_id", r.transaction_id);
-        totalRemoved++;
+    const accessUrl = item.access_token as string;
+    const cur = parseCursor(item.transactions_cursor as string | null);
+    let start = new Date(end.getTime() - 89 * 86400000);
+    if (cur?.lastEnd) {
+      const d = new Date(`${cur.lastEnd}T00:00:00.000Z`);
+      if (!Number.isNaN(d.getTime())) {
+        d.setUTCDate(d.getUTCDate() + 1);
+        if (d < end) start = d;
       }
     }
+    const payload = await simplefinGetAccounts(accessUrl, {
+      version: "2",
+      "start-date": ymd(start),
+      "end-date": endStr,
+      pending: "true",
+    });
+
+    await upsertTransactionsFromPayload(userId, item.id as string, item.item_id as string, payload);
+    const txsN = (payload.accounts ?? []).reduce((n, a) => n + (a.transactions?.length ?? 0), 0);
+    added += txsN;
 
     await sb
       .from("plaid_items")
       .update({
-        transactions_cursor: cursor,
+        transactions_cursor: JSON.stringify({ lastEnd: endStr } satisfies CursorState),
         updated_at: new Date().toISOString(),
       })
       .eq("id", item.id);
   }
 
-  return { added: totalAdded, modified: totalModified, removed: totalRemoved };
+  return { added, modified: 0, removed: 0 };
 }
 
-async function loadAccountMap(
-  userId: string
-): Promise<Map<string, string>> {
+async function loadAccountMap(userId: string): Promise<Map<string, string>> {
   const sb = getDb();
   const { data } = await sb
     .from("linked_accounts")
@@ -190,119 +380,44 @@ async function loadAccountMap(
   return m;
 }
 
-async function upsertTransaction(
-  userId: string,
-  accountMap: Map<string, string>,
-  t: Transaction,
-  plaidItemUuid: string
-) {
-  const sb = getDb();
-  const linkedId =
-    accountMap.get(t.account_id) ??
-    (await ensureAccountLinked(userId, plaidItemUuid, t.account_id));
-
-  const category = t.category?.length
-    ? t.category
-    : t.personal_finance_category?.detailed
-      ? [t.personal_finance_category.primary, t.personal_finance_category.detailed]
-      : null;
-
-  const row = {
-    user_id: userId,
-    linked_account_id: linkedId,
-    plaid_transaction_id: t.transaction_id,
-    plaid_account_id: t.account_id,
-    amount: t.amount,
-    trans_date: t.date,
-    authorized_date: t.authorized_date ?? null,
-    merchant_name: t.merchant_name ?? t.name ?? null,
-    merchant_entity_id: t.merchant_entity_id ?? null,
-    category,
-    pending: t.pending ?? false,
-    payment_channel: t.payment_channel ?? null,
-    raw: t as unknown as Record<string, unknown>,
-  };
-
-  const { error } = await sb.from("transactions").upsert(row, {
-    onConflict: "user_id,plaid_transaction_id",
-  });
-  if (error) throw error;
-}
-
 async function ensureAccountLinked(
   userId: string,
   plaidItemUuid: string,
-  plaidAccountId: string
+  _itemKey: string,
+  plaidAccountId: string,
+  acc: SimplefinAccount
 ): Promise<string | null> {
+  await upsertLinkedFromSimplefin(userId, plaidItemUuid, _itemKey, acc, plaidAccountId);
   const sb = getDb();
-  const { data: item } = await sb
-    .from("plaid_items")
-    .select("item_id, access_token")
-    .eq("id", plaidItemUuid)
-    .single();
-
-  if (!item) return null;
-
-  const res = await plaidClient.accountsGet({
-    access_token: item.access_token as string,
-  });
-  const acc = res.data.accounts.find((a) => a.account_id === plaidAccountId);
-  if (!acc) return null;
-
-  await upsertLinkedAccount(
-    userId,
-    plaidItemUuid,
-    item.item_id as string,
-    acc
-  );
-
   const { data: row } = await sb
     .from("linked_accounts")
     .select("id")
     .eq("user_id", userId)
     .eq("plaid_account_id", plaidAccountId)
     .single();
-
   return (row?.id as string) ?? null;
 }
 
 export async function getIdentityForUser(userId: string) {
   const sb = getDb();
-  const { data: items } = await sb
-    .from("plaid_items")
-    .select("access_token")
+  const { data: accounts } = await sb
+    .from("linked_accounts")
+    .select("name, subtype, plaid_account_id")
     .eq("user_id", userId)
-    .limit(1);
-
-  if (!items?.length) return { identity: null as unknown };
-  const access_token = items[0].access_token as string;
-  const res = await plaidClient.identityGet({ access_token });
-  return res.data;
+    .limit(50);
+  return {
+    provider: "simplefin",
+    accounts: accounts ?? [],
+  };
 }
 
 export async function getInvestmentsForUser(userId: string) {
-  const sb = getDb();
-  const { data: items } = await sb
-    .from("plaid_items")
-    .select("access_token")
-    .eq("user_id", userId)
-    .limit(1);
-
-  if (!items?.length) {
-    return { holdings: [], message: "No linked items" };
-  }
-
-  try {
-    const access_token = items[0].access_token as string;
-    const holdings = await plaidClient.investmentsHoldingsGet({ access_token });
-    return holdings.data;
-  } catch (e: unknown) {
-    const err = e as { response?: { data?: { error_code?: string } } };
-    if (err.response?.data?.error_code === "PRODUCTS_NOT_SUPPORTED") {
-      return { holdings: [], message: "Investments not enabled for this item" };
-    }
-    throw e;
-  }
+  void userId;
+  return {
+    holdings: [],
+    securities: [],
+    message: "Investment holdings are not available via SimpleFIN Bridge in FinPulse.",
+  };
 }
 
 export async function listPlaidItemsForUser(userId: string) {
@@ -343,11 +458,7 @@ export async function listPlaidItemsForUser(userId: string) {
   }));
 }
 
-export async function unlinkPlaidItemForUser(
-  userId: string,
-  plaidItemId: string,
-  deleteHistory: boolean
-) {
+export async function unlinkPlaidItemForUser(userId: string, plaidItemId: string, deleteHistory: boolean) {
   const sb = getDb();
   const { data: item, error } = await sb
     .from("plaid_items")
@@ -393,23 +504,14 @@ export async function unlinkPlaidItemForUser(
       if (rewardsErr && !rewardsMsg.includes("Could not find the table")) throw rewardsErr;
     }
 
-    // Recurring subscriptions are derived from transaction history; reset to regenerate from remaining items.
     const { error: subsErr } = await sb.from("subscriptions").delete().eq("user_id", userId);
     if (subsErr) throw subsErr;
   }
 
-  const { error: delErr } = await sb
-    .from("plaid_items")
-    .delete()
-    .eq("id", plaidItemId)
-    .eq("user_id", userId);
+  const { error: delErr } = await sb.from("plaid_items").delete().eq("id", plaidItemId).eq("user_id", userId);
   if (delErr) throw delErr;
 
-  try {
-    await plaidClient.itemRemove({ access_token: item.access_token as string });
-  } catch {
-    // Ignore Plaid-side revoke failures after local unlink succeeds.
-  }
+  // SimpleFIN access is revoked by the user in Bridge UI; nothing to call server-side.
 
   return { ok: true, deletedHistory: deleteHistory };
 }

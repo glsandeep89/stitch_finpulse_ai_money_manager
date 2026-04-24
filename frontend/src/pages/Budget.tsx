@@ -483,12 +483,12 @@ export default function Budget() {
         className="mb-12 bg-surface-container-lowest rounded-2xl border border-outline-variant/10 shadow-ambient open:shadow-ambient"
       >
         <summary className="cursor-pointer list-none p-6 pb-0 font-headline font-bold text-on-background flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
-          <span>Budget rules (Plaid mapping)</span>
+          <span>Budget rules (category mapping)</span>
           <span className="material-symbols-outlined text-on-surface-variant shrink-0">expand_more</span>
         </summary>
         <div className="p-6 pt-4">
           <p className="text-sm text-on-surface-variant font-body mb-4">
-            When any Plaid category label contains your pattern (case-insensitive), that spend rolls into the budget row
+            When any imported category label contains your pattern (case-insensitive), that spend rolls into the budget row
             you name here (e.g. map &quot;Food and Drink&quot; → your &quot;Groceries&quot; budget).
           </p>
           {mappings.length === 0 ? (
@@ -518,7 +518,7 @@ export default function Budget() {
           )}
           <form onSubmit={addMapping} className="flex flex-col sm:flex-row gap-3 sm:items-end">
             <div className="flex-1">
-              <label className="block text-xs text-on-surface-variant mb-1">Plaid category contains</label>
+              <label className="block text-xs text-on-surface-variant mb-1">Category label contains</label>
               <input
                 className="w-full rounded-xl border border-outline-variant/30 px-3 py-2 text-sm"
                 value={mapPattern}

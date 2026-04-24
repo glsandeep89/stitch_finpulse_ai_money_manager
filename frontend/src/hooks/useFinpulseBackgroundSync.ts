@@ -3,8 +3,8 @@ import { useLocation } from "react-router-dom";
 import { api } from "../lib/api";
 
 /**
- * After auth: one full sync (Plaid + net worth + AI). On each subsequent route change,
- * incremental Plaid transactions sync only.
+ * After auth: one full sync (transactions + net worth + AI). On each subsequent route change,
+ * incremental transaction sync only.
  */
 export function useFinpulseBackgroundSync(userId: string | undefined, accessToken: string | undefined) {
   const { pathname } = useLocation();

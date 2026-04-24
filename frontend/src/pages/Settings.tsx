@@ -213,7 +213,7 @@ export default function Settings() {
       <section className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/10 shadow-ambient">
         <h2 className="font-headline text-lg font-semibold text-on-surface mb-4">Linked bank connections</h2>
         {plaidItems.length === 0 ? (
-          <p className="text-sm text-on-surface-variant font-body">No Plaid connections linked.</p>
+          <p className="text-sm text-on-surface-variant font-body">No bank connections linked (SimpleFIN).</p>
         ) : (
           <div className="space-y-3">
             {plaidItems.map((item) => (

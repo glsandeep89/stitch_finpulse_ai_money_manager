@@ -18,9 +18,7 @@ Set these on the Render service:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_JWT_SECRET` (optional; not required for API auth if using `auth.getUser`)
-- `PLAID_CLIENT_ID`
-- `PLAID_SECRET`
-- `PLAID_ENV` — use `sandbox` for testing; production only with production Plaid keys.
+- (Optional) `SIMPLEFIN_BRIDGE_SIGNUP_URL` — override URL shown to users for creating SimpleFIN setup tokens (defaults to the public Bridge page).
 - `GEMINI_API_KEY`
 - `FRONTEND_URL` — your static site origin for CORS (e.g. `https://finpulse.onrender.com`).
 - `PORT` — Render sets automatically; do not override unless needed.

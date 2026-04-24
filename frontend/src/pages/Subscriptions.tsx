@@ -204,7 +204,7 @@ export default function Subscriptions() {
                 <p className="font-body text-xs text-on-surface-variant">
                   {largest
                     ? `Largest monthly equivalent: ${largest.name} at ${monthlyEquivalent(largest.amount, largest.frequency).toLocaleString(undefined, { style: "currency", currency: "USD" })}.`
-                    : "No subscription rows yet. Populate from Plaid recurring or add via API."}
+                    : "No subscription rows yet. Populate from recurring transaction detection or add via API."}
                 </p>
               </div>
             </div>

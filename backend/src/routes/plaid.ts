@@ -3,7 +3,7 @@ import { z } from "zod";
 import { authMiddleware } from "../middleware/auth.js";
 import { scopeMiddleware } from "../middleware/scopeMiddleware.js";
 import {
-  createLinkToken,
+  getSimplefinConnectInfo,
   exchangePublicToken,
   refreshAccountsFromPlaid,
   syncTransactionsForUser,
@@ -18,15 +18,9 @@ export const plaidRouter = Router();
 plaidRouter.use(authMiddleware);
 plaidRouter.use(scopeMiddleware);
 
-plaidRouter.post("/create_link_token", async (req, res) => {
+plaidRouter.post("/create_link_token", async (_req, res) => {
   try {
-    const schema = z.object({
-      redirect_uri: z.string().url().optional(),
-    });
-    const body = schema.parse(req.body ?? {});
-    const userId = req.userId!;
-    const out = await createLinkToken(userId, body.redirect_uri);
-    res.json(out);
+    res.json(getSimplefinConnectInfo());
   } catch (e: unknown) {
     const err = e as Error;
     res.status(400).json({ error: err.message });
@@ -35,10 +29,18 @@ plaidRouter.post("/create_link_token", async (req, res) => {
 
 plaidRouter.post("/exchange_public_token", async (req, res) => {
   try {
-    const schema = z.object({ public_token: z.string().min(1) });
-    const { public_token } = schema.parse(req.body);
+    const schema = z
+      .object({
+        public_token: z.string().min(1).optional(),
+        setup_token: z.string().min(1).optional(),
+      })
+      .refine((b) => Boolean(b.public_token || b.setup_token), {
+        message: "Provide public_token (SimpleFIN setup token) or setup_token.",
+      });
+    const body = schema.parse(req.body ?? {});
+    const token = body.public_token ?? body.setup_token!;
     const userId = req.userId!;
-    const out = await exchangePublicToken(userId, public_token);
+    const out = await exchangePublicToken(userId, token);
     res.json(out);
   } catch (e: unknown) {
     const err = e as Error;

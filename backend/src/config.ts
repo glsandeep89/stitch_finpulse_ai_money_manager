@@ -22,9 +22,8 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || "development",
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-  plaidClientId: process.env.PLAID_CLIENT_ID,
-  plaidSecret: process.env.PLAID_SECRET,
-  plaidEnv: (process.env.PLAID_ENV || "sandbox") as "sandbox" | "development" | "production",
+  /** Optional override for where users create SimpleFIN setup tokens (defaults to public Bridge URL). */
+  simplefinBridgeSignupUrl: process.env.SIMPLEFIN_BRIDGE_SIGNUP_URL,
   geminiApiKey: process.env.GEMINI_API_KEY,
   /** Google AI Studio model id (e.g. gemini-2.0-flash). */
   geminiModel: process.env.GEMINI_MODEL || "gemini-2.0-flash",

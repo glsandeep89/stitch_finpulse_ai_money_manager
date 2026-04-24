@@ -2,6 +2,18 @@
 
 This guide makes FinPulse production-ready for web and Android wrapper usage.
 
+## Phase B Status (completed, cron deferred)
+
+- Completed:
+  - Applied production migrations for `refund_events` and `credit_card_rewards_profiles`.
+  - Verified both tables exist in schema `finpulse`, have RLS enabled, and required policies/indexes are present.
+  - Migrated account aggregation from **Plaid** to **SimpleFIN Bridge** (legacy `/plaid/*` API routes remain as stable aliases).
+  - Removed backend-only secrets from the static web service environment; only `VITE_*` variables remain on `finpulse-web`.
+  - Redeployed API and web services and verified health/auth-protected routes are reachable.
+- Deferred by design:
+  - `finpulse-sync-cron` deployment and cron validation.
+  - All key rotation tasks (to be done in final phase).
+
 ## 1) Deploy API + Web on Render
 
 Use the provided `render.yaml` blueprint from repo root.
@@ -14,15 +26,14 @@ Use the provided `render.yaml` blueprint from repo root.
 - Keep these env vars secret:
   - `SUPABASE_URL`
   - `SUPABASE_SERVICE_ROLE_KEY`
-  - `PLAID_CLIENT_ID`
-  - `PLAID_SECRET`
   - `GEMINI_API_KEY`
 - Set these explicitly:
   - `NODE_ENV=production`
-  - `PLAID_ENV=production`
   - `SUPABASE_DB_SCHEMA=finpulse`
   - `ENABLE_REWARDS_CATALOG_FALLBACK=false`
   - `FRONTEND_URLS=https://<your-frontend-domain>`
+- Optional:
+  - `SIMPLEFIN_BRIDGE_SIGNUP_URL` — override the URL FinPulse shows for creating SimpleFIN setup tokens (defaults to the public Bridge page).
 
 ### Web service (`finpulse-web`)
 
@@ -56,17 +67,17 @@ Use the provided `render.yaml` blueprint from repo root.
 - IP allowlisting is optional and depends on your Supabase plan/networking features.
 - If you use allowlisting, still keep strict RLS and least privilege.
 
-## 3) Plaid Production Cutover
+## 3) SimpleFIN Bridge
 
-- Use production app credentials and set `PLAID_ENV=production`.
-- Keep sandbox credentials only in non-production envs.
-- Validate required product access before launch.
+- Users create a **setup token** in SimpleFIN Bridge and paste it once into FinPulse.
+- The API exchanges it for a private **access URL** stored in `plaid_items.access_token` (column name is legacy; value is SimpleFIN).
+- Respect SimpleFIN rate limits (see Bridge documentation).
 
 ## 4) Pre-launch Checklist
 
-- [ ] API `/health` reachable on Render
-- [ ] Login works on hosted frontend
-- [ ] Plaid link + sync succeeds with production credentials
-- [ ] No secrets in frontend build/output
+- [x] API `/health` reachable on Render
+- [ ] Login works on hosted frontend (manual validation)
+- [ ] SimpleFIN setup token exchange + sync succeeds (manual validation)
+- [x] No secrets in frontend build/output (static service env contains only `VITE_*`)
 - [ ] Scheduled sync succeeds (check Render logs)
-- [ ] `ENABLE_REWARDS_CATALOG_FALLBACK=false` in production
+- [x] `ENABLE_REWARDS_CATALOG_FALLBACK=false` in production

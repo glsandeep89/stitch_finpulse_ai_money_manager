@@ -39,7 +39,7 @@ async function loadRecentTransactionsSummary(userIds: string[]): Promise<string>
 export async function generateInsights(viewerUserId: string, dataUserIds: string[]) {
   const summary = await loadRecentTransactionsSummary(dataUserIds);
   const model = getModel();
-  const prompt = `You are a financial coach. Given recent transactions (amounts may be negative for outflows in Plaid):\n${summary}\n\nProvide 3 concise insights as JSON array of objects with keys: title, body, type (one of: spending, savings, risk). No markdown.`;
+  const prompt = `You are a financial coach. Given recent transactions (amount sign conventions may vary by source):\n${summary}\n\nProvide 3 concise insights as JSON array of objects with keys: title, body, type (one of: spending, savings, risk). No markdown.`;
 
   const res = await model.generateContent(prompt);
   const text = res.response.text();
@@ -126,7 +126,7 @@ export async function generateWhatIf(viewerUserId: string, dataUserIds: string[]
 export async function generateForecast(viewerUserId: string, dataUserIds: string[]) {
   const summary = await loadRecentTransactionsSummary(dataUserIds);
   const model = getModel();
-  const prompt = `You are a financial analyst. Given recent transactions (Plaid amounts: positive often means spend out of asset accounts):\n${summary}\n\nWrite plain text with sections:
+  const prompt = `You are a financial analyst. Given recent transactions (amount sign conventions may vary by account type):\n${summary}\n\nWrite plain text with sections:
 1) Expected cash flow for next 30, 60, and 90 days (rough estimates; label as estimates).
 2) Upcoming risk alerts (up to 3 short bullets).
 3) One line disclaimer: not financial advice.
@@ -167,7 +167,7 @@ export async function generateChatReply(
   const hint = routeHint ? `The user is on screen: ${routeHint}.\n` : "";
   const tail = messages.slice(-8);
   const prompt = `You are a concise assistant for FinPulse, a personal finance app. ${hint}
-Recent transactions (Plaid amounts may be positive for outflows depending on account type):
+Recent transactions (amount sign conventions may vary by account type):
 ${summary}
 
 Conversation:

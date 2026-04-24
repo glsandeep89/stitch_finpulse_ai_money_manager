@@ -70,7 +70,7 @@ export default function Login() {
           <h1 className="font-headline text-2xl font-bold text-primary">FinPulse</h1>
         </div>
         <p className="text-sm text-on-surface-variant font-body mb-6">
-          Sign in to connect Plaid (sandbox) and view your data.
+          Sign in to connect accounts via SimpleFIN Bridge and view your data.
         </p>
         {!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY ? (
           <p className="text-sm text-on-surface bg-surface-container-low border border-outline-variant/30 rounded-lg p-3 mb-4 font-body">

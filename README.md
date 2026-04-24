@@ -1,12 +1,12 @@
 # FinPulse
 
-AI-powered financial tracker: **Vite + React** frontend, **Node (Express) + TypeScript** API, **Supabase** (Auth + Postgres), **Plaid** (Sandbox), **Gemini** (insights), deploy API with **Docker** on **Render**.
+AI-powered financial tracker: **Vite + React** frontend, **Node (Express) + TypeScript** API, **Supabase** (Auth + Postgres), **SimpleFIN Bridge** (account aggregation), **Gemini** (insights), deploy API with **Docker** on **Render**.
 
 ## Prerequisites
 
 - Node.js 20+
 - Supabase project (run SQL in `supabase/migrations/` in the SQL editor)
-- Plaid Sandbox keys (`PLAID_ENV=sandbox`)
+- A SimpleFIN Bridge account (users paste a one-time setup token; see [SimpleFIN Bridge developer docs](https://bridge.simplefin.org/info/developer))
 - Gemini API key
 
 ## Environment
@@ -18,7 +18,7 @@ Copy `.env.example` to `.env` at the repo root. Required for the API:
 | `SUPABASE_URL` | Project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-side DB (keep secret) |
 | `SUPABASE_JWT_SECRET` | Optional (API verifies sessions via `auth.getUser`, not this secret) |
-| `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV` | Plaid |
+| `SIMPLEFIN_BRIDGE_SIGNUP_URL` (optional) | Override URL for creating setup tokens (defaults to public Bridge) |
 | `GEMINI_API_KEY` | Gemini |
 
 Frontend (Vite) — prefix `VITE_`:
@@ -82,13 +82,12 @@ npm run dev
 - API: `http://localhost:3001/health`
 - App: `http://localhost:5173`
 
-Sign up / sign in with Supabase Auth, then use **Link bank account** (Plaid Sandbox). In Link, choose a sandbox institution (e.g. First Platypus Bank) and use Plaid’s sandbox credentials (commonly `user_good` / `pass_good` where prompted). After linking, the app calls `POST /jobs/sync-my-data` to pull transactions and refresh net worth.
+Sign up / sign in with Supabase Auth, then use **Link bank account**. Open the SimpleFIN Bridge page, create a **setup token**, paste it into FinPulse, and confirm. The API exchanges it once for a private access URL stored per user, then `POST /jobs/sync-my-data` pulls transactions and refreshes net worth.
 
-## Plaid Sandbox demo
+## SimpleFIN Bridge notes
 
-- Keep `PLAID_ENV=sandbox`.
-- Use only test institutions shown inside Plaid Link.
-- After sync, Overview and Activity should show **live Plaid sandbox transactions**, not the old static Stitch HTML placeholders.
+- Respect Bridge rate limits (roughly 24 full `/accounts` fetches per day per access token).
+- After sync, Overview and Activity should show **live transactions** from your linked institutions.
 
 ## Docker (API)
 
@@ -119,7 +118,7 @@ Use a personal access token for HTTPS if needed.
 
 ## Project layout
 
-- `backend/` — REST API (Plaid, data, AI, jobs)
+- `backend/` — REST API (connections, data, AI, jobs)
 - `frontend/` — Vite React UI
 - `supabase/migrations/` — schema + RLS
 - `reference/stitch-html/` — original Stitch HTML exports (reference)
