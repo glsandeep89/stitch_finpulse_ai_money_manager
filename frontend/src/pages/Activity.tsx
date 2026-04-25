@@ -4,14 +4,17 @@ import { AiOutputCard, AiOutputEmpty } from "../components/ai/AiOutputCard";
 import { api } from "../lib/api";
 import type { AiOutputRow, AiOutputsResponse } from "../lib/aiOutputs";
 import { useAuth } from "../contexts/AuthContext";
+import { cleanDisplayMerchant, MerchantLogo, walletRailLabelFromMetadata } from "../lib/merchantBranding";
 
 type Tx = {
   plaid_transaction_id: string;
   plaid_account_id: string | null;
   merchant_name: string | null;
+  raw_merchant_name?: string | null;
   amount: number;
   trans_date: string;
   category: string[] | null;
+  wallet_rail?: string | null;
 };
 
 type Account = { plaid_account_id: string; name: string; type?: string; subtype?: string };
@@ -59,10 +62,6 @@ function exportLedgerCsv(txs: Tx[], accountMap: Record<string, string>) {
   URL.revokeObjectURL(url);
 }
 
-function merchantIcon(_name: string): string {
-  return "payments";
-}
-
 /** Ported from `reference/stitch-html/activity_web/code.html` */
 export default function Activity({
   title = "Transactions",
@@ -108,6 +107,13 @@ export default function Activity({
   const [flowView, setFlowView] = useState<"expense" | "income">("expense");
   const [recurringBusyTx, setRecurringBusyTx] = useState<string | null>(null);
   const [recurringMarked, setRecurringMarked] = useState<Record<string, "yes" | "no">>({});
+  const [merchantOverrides, setMerchantOverrides] = useState<
+    { id: string; merchant_pattern: string; canonical_merchant: string; category_override: string | null }[]
+  >([]);
+  const [editingMerchantTx, setEditingMerchantTx] = useState<Tx | null>(null);
+  const [merchantFixName, setMerchantFixName] = useState("");
+  const [merchantFixCategory, setMerchantFixCategory] = useState("");
+  const [merchantFixBusy, setMerchantFixBusy] = useState(false);
 
   const filtersRef = useRef({
     dateFrom,
@@ -127,9 +133,13 @@ export default function Activity({
   const loadMeta = useCallback(async () => {
     if (!session?.access_token) return;
     try {
-      const [cats, acc] = await Promise.all([
+      const [cats, acc, overrides] = await Promise.all([
         api<{ categories: string[] }>("/meta/transaction-categories", { accessToken: session.access_token }),
         api<{ accounts: Record<string, unknown>[] }>("/plaid/accounts", { accessToken: session.access_token }),
+        api<{ overrides: { id: string; merchant_pattern: string; canonical_merchant: string; category_override: string | null }[] }>(
+          "/meta/merchant-overrides",
+          { accessToken: session.access_token }
+        ).catch(() => ({ overrides: [] })),
       ]);
       setCategories(cats.categories);
       setAccounts(
@@ -140,6 +150,7 @@ export default function Activity({
           subtype: String(a.subtype ?? ""),
         }))
       );
+      setMerchantOverrides(overrides.overrides ?? []);
     } catch {
       /* optional */
     }
@@ -389,6 +400,20 @@ export default function Activity({
     return out;
   }, [filteredTxs]);
 
+  const labelDisplayByTx = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const t of filteredTxs) {
+      const manualLabel = labelsByTx[t.plaid_transaction_id];
+      if (manualLabel && manualLabel.trim()) {
+        out[t.plaid_transaction_id] = manualLabel;
+        continue;
+      }
+      const walletLabel = walletRailLabelFromMetadata(t.wallet_rail);
+      if (walletLabel) out[t.plaid_transaction_id] = walletLabel;
+    }
+    return out;
+  }, [filteredTxs, labelsByTx]);
+
   const setRecurringPreference = async (tx: Tx, isRecurring: boolean) => {
     if (!session?.access_token) return;
     setErr(null);
@@ -404,6 +429,54 @@ export default function Activity({
       setErr(e instanceof Error ? e.message : "Failed to update recurring preference");
     } finally {
       setRecurringBusyTx(null);
+    }
+  };
+
+  const openMerchantFix = (tx: Tx) => {
+    setEditingMerchantTx(tx);
+    setMerchantFixName(cleanDisplayMerchant(tx.merchant_name));
+    setMerchantFixCategory(primaryCategory(tx));
+  };
+
+  const saveMerchantFix = async () => {
+    if (!session?.access_token || !editingMerchantTx) return;
+    const normalizedPattern = String(editingMerchantTx.raw_merchant_name ?? editingMerchantTx.merchant_name ?? "").trim();
+    if (!normalizedPattern || !merchantFixName.trim()) return;
+    setMerchantFixBusy(true);
+    setErr(null);
+    try {
+      const created = await api<{ id: string; merchant_pattern: string; canonical_merchant: string; category_override: string | null }>(
+        "/meta/merchant-overrides",
+        {
+          method: "POST",
+          accessToken: session.access_token,
+          body: JSON.stringify({
+            merchant_pattern: normalizedPattern,
+            canonical_merchant: merchantFixName.trim(),
+            category_override: merchantFixCategory.trim() || null,
+          }),
+        }
+      );
+      setMerchantOverrides((prev) => {
+        const filtered = prev.filter((p) => p.id !== created.id);
+        return [created, ...filtered];
+      });
+      const canonical = merchantFixName.trim();
+      const category = merchantFixCategory.trim() || "Uncategorized";
+      setTxs((prev) =>
+        prev.map((t) =>
+          t.plaid_transaction_id === editingMerchantTx.plaid_transaction_id
+            ? { ...t, merchant_name: canonical, category: [category] }
+            : t
+        )
+      );
+      setEditingMerchantTx(null);
+      setMerchantFixName("");
+      setMerchantFixCategory("");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to save merchant fix");
+    } finally {
+      setMerchantFixBusy(false);
     }
   };
 
@@ -824,17 +897,26 @@ export default function Activity({
                         <td className="px-6 py-5 font-body text-sm text-on-surface-variant">{t.trans_date}</td>
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface">
-                              <span className="material-symbols-outlined text-[16px]">{merchantIcon(t.merchant_name ?? "")}</span>
+                            <MerchantLogo merchantName={cleanDisplayMerchant(t.merchant_name)} sizeClass="h-8 w-8" />
+                            <div className="flex items-center gap-2">
+                              <span className="font-body font-medium text-on-surface">
+                                {cleanDisplayMerchant(t.merchant_name)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => openMerchantFix(t)}
+                                className="text-[11px] text-primary hover:underline"
+                              >
+                                Fix
+                              </button>
                             </div>
-                            <span className="font-body font-medium text-on-surface">{t.merchant_name ?? "—"}</span>
                           </div>
                         </td>
                         <td className="px-6 py-5 font-body text-sm text-on-surface-variant">
                           {(t.category ?? []).join(" · ") || "—"}
                         </td>
                         <td className="px-6 py-5 font-body text-sm text-on-surface-variant">
-                          {labelsByTx[t.plaid_transaction_id] ?? "—"}
+                          {labelDisplayByTx[t.plaid_transaction_id] ?? "—"}
                         </td>
                         <td className="px-6 py-5 font-body text-sm text-on-surface-variant">
                           {t.plaid_account_id ? accountMap[t.plaid_account_id] ?? "—" : "—"}
@@ -844,7 +926,7 @@ export default function Activity({
                             t.amount < 0 ? "text-on-tertiary-container" : "text-on-surface"
                           }`}
                         >
-                          {t.amount.toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                          {Math.abs(t.amount).toLocaleString(undefined, { style: "currency", currency: "USD" })}
                         {uncertainRecurringByTx.has(t.plaid_transaction_id) ? (
                           <div className="mt-1">
                             <p className="text-[10px] text-on-surface-variant mb-0.5">
@@ -882,6 +964,49 @@ export default function Activity({
           </div>
         </div>
       </div>
+      {editingMerchantTx ? (
+        <div className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-xl bg-surface-container-lowest border border-outline-variant/20 p-4">
+            <h4 className="font-headline text-base font-semibold text-on-surface">Fix merchant</h4>
+            <p className="text-xs text-on-surface-variant mt-1">
+              Raw: {editingMerchantTx.raw_merchant_name ?? editingMerchantTx.merchant_name ?? "—"}
+            </p>
+            <p className="text-[10px] text-on-surface-variant mt-1">Saved learned rules: {merchantOverrides.length}</p>
+            <div className="mt-3 space-y-2">
+              <label className="block text-xs text-on-surface-variant">Canonical merchant</label>
+              <input
+                value={merchantFixName}
+                onChange={(e) => setMerchantFixName(e.target.value)}
+                className="w-full rounded-lg border border-outline-variant/20 px-3 py-2 text-sm"
+              />
+              <label className="block text-xs text-on-surface-variant">Category override (optional)</label>
+              <input
+                value={merchantFixCategory}
+                onChange={(e) => setMerchantFixCategory(e.target.value)}
+                className="w-full rounded-lg border border-outline-variant/20 px-3 py-2 text-sm"
+                placeholder="Groceries"
+              />
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingMerchantTx(null)}
+                className="text-xs text-on-surface-variant px-3 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={merchantFixBusy}
+                onClick={() => void saveMerchantFix()}
+                className="rounded-lg bg-primary text-on-primary px-3 py-2 text-xs font-medium disabled:opacity-60"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

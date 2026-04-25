@@ -163,10 +163,12 @@ export async function listTransactions(
     }
     return {
       ...row,
+      raw_merchant_name: rawMerchant,
       merchant_name: merchant,
       category: [resolvedCategory],
       merchant_resolution_confidence: merchantResolution.confidence,
       merchant_resolution_source: merchantResolution.source,
+      wallet_rail: merchantResolution.walletRail,
     };
   });
   if (opts.category) {
@@ -764,6 +766,7 @@ function toTitleCase(input: string): string {
 
 const MERCHANT_CLEAN_RULES: Array<{ pattern: RegExp; replacement: string }> = [
   { pattern: /\bcursor\b.*(ai\s*powered)?/i, replacement: "Cursor" },
+  { pattern: /\b(sampay|samsung\s*pay)\b.*\bh[\s\-]*e[\s\-]*b\b/i, replacement: "H-E-B" },
   { pattern: /sampay\*?\s*doordash|doordash|door dash/i, replacement: "DoorDash" },
   { pattern: /sampay\*?\s*foodistaan|foodistaan/i, replacement: "Foodistaan" },
   { pattern: /signature\s*pest/i, replacement: "Signature Pest Management" },
@@ -803,7 +806,27 @@ type MerchantResolution = {
   confidence: number;
   source: "user_override" | "alias_exact" | "alias_regex" | "clean_rule" | "fallback";
   categoryOverride: string | null;
+  walletRail: "Samsung Pay" | "Apple Pay" | "Google Pay" | null;
 };
+
+function extractWalletRail(rawMerchant: string): {
+  cleanedMerchant: string;
+  walletRail: MerchantResolution["walletRail"];
+} {
+  const source = String(rawMerchant ?? "").trim();
+  const lower = source.toLowerCase();
+  const railChecks: Array<{ pattern: RegExp; rail: MerchantResolution["walletRail"] }> = [
+    { pattern: /\b(sampay|samsung\s*pay)\b/i, rail: "Samsung Pay" },
+    { pattern: /\b(apple\s*pay)\b/i, rail: "Apple Pay" },
+    { pattern: /\b(google\s*pay|gpay)\b/i, rail: "Google Pay" },
+  ];
+  for (const check of railChecks) {
+    if (!check.pattern.test(lower)) continue;
+    const cleaned = source.replace(check.pattern, " ").replace(/\s+/g, " ").trim();
+    return { cleanedMerchant: cleaned || source, walletRail: check.rail };
+  }
+  return { cleanedMerchant: source, walletRail: null };
+}
 
 function canonicalMerchantName(raw: string | null | undefined): string {
   const source = String(raw ?? "").trim();
@@ -834,7 +857,7 @@ function systemCategoryFromMerchant(merchant: string): string {
   if (/(disney|netflix|spotify|hulu|youtube|zee5|entertainment)/.test(m)) return "Entertainment & Recreation";
   if (/(home depot|lowes|ace hardware)/.test(m)) return "Home Improvements";
   if (/(real green|trugreen|signature pest|pest)/.test(m)) return "Home Improvements";
-  if (/(walmart|target|costco|whole foods|trader joes|heb|kroger|grocery)/.test(m)) return "Groceries";
+  if (/(walmart|target|costco|whole foods|trader joes|heb|h e b|kroger|grocery)/.test(m)) return "Groceries";
   if (/(shell|chevron|exxon|fuel|gas)/.test(m)) return "Auto Maintenance";
   if (/(verizon|att|t mobile|xfinity|spectrum|internet|phone)/.test(m)) return "Internet & Cable";
   if (/(pedernales electric|electric|utility|utilities|water|power)/.test(m)) return "Business Utilities & Communication";
@@ -882,7 +905,8 @@ function resolveCanonicalMerchant(
   overrides: MerchantOverrideRow[]
 ): MerchantResolution {
   const raw = String(rawMerchant ?? "");
-  const normalizedRaw = normalizeText(raw);
+  const { cleanedMerchant, walletRail } = extractWalletRail(raw);
+  const normalizedRaw = normalizeText(cleanedMerchant);
 
   for (const row of overrides) {
     const pattern = normalizeText(row.merchant_pattern);
@@ -893,6 +917,7 @@ function resolveCanonicalMerchant(
         confidence: 1,
         source: "user_override",
         categoryOverride: row.category_override ?? null,
+        walletRail,
       };
     }
   }
@@ -906,6 +931,7 @@ function resolveCanonicalMerchant(
         confidence: 0.96,
         source: "alias_exact",
         categoryOverride: row.default_category ?? null,
+        walletRail,
       };
     }
   }
@@ -920,19 +946,20 @@ function resolveCanonicalMerchant(
         confidence: 0.9,
         source: "alias_regex",
         categoryOverride: row.default_category ?? null,
+        walletRail,
       };
     } catch {
       continue;
     }
   }
 
-  const cleaned = canonicalMerchantName(raw);
+  const cleaned = canonicalMerchantName(cleanedMerchant);
   for (const rule of MERCHANT_CLEAN_RULES) {
-    if (rule.pattern.test(raw)) {
-      return { canonical: cleaned, confidence: 0.82, source: "clean_rule", categoryOverride: null };
+    if (rule.pattern.test(cleanedMerchant)) {
+      return { canonical: cleaned, confidence: 0.82, source: "clean_rule", categoryOverride: null, walletRail };
     }
   }
-  return { canonical: cleaned, confidence: 0.62, source: "fallback", categoryOverride: null };
+  return { canonical: cleaned, confidence: 0.62, source: "fallback", categoryOverride: null, walletRail };
 }
 
 async function userMerchantCategoryOverrides(userIds: string[]): Promise<Map<string, string>> {
