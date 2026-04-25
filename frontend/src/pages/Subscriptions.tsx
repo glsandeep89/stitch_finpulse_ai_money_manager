@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RowActionMenu } from "../components/RowActionMenu";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { cleanDisplayMerchant, MerchantLogo } from "../lib/merchantBranding";
@@ -13,6 +14,7 @@ type Sub = {
   raw?: {
     payment_account_name?: string | null;
     category?: string | null;
+    merchant_key?: string | null;
   } | null;
 };
 
@@ -52,6 +54,13 @@ export default function Subscriptions() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<RecurringTab>("monthly");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [editingSub, setEditingSub] = useState<Sub | null>(null);
+  const [viewingSub, setViewingSub] = useState<Sub | null>(null);
+  const [merchantFixName, setMerchantFixName] = useState("");
+  const [merchantFixCategory, setMerchantFixCategory] = useState("");
+  const [merchantFixBusy, setMerchantFixBusy] = useState(false);
+  const merchantFixNameRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!session?.access_token) return;
@@ -72,6 +81,76 @@ export default function Subscriptions() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    void api<{ categories: string[] }>("/meta/transaction-categories", { accessToken: session.access_token })
+      .then((r) => setCategories(r.categories ?? []))
+      .catch(() => setCategories([]));
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    if (!editingSub) return;
+    const id = window.requestAnimationFrame(() => merchantFixNameRef.current?.focus());
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setEditingSub(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.cancelAnimationFrame(id);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [editingSub]);
+
+  const openMerchantFix = (sub: Sub) => {
+    setEditingSub(sub);
+    setMerchantFixName(cleanDisplayMerchant(sub.merchant_name || sub.name));
+    setMerchantFixCategory("");
+  };
+
+  const saveMerchantFix = async () => {
+    if (!session?.access_token || !editingSub || !merchantFixName.trim()) return;
+    const pattern = String(editingSub.raw?.merchant_key || editingSub.merchant_name || editingSub.name || "").trim();
+    if (!pattern) return;
+    setMerchantFixBusy(true);
+    setErr(null);
+    try {
+      await api("/meta/merchant-overrides", {
+        method: "POST",
+        accessToken: session.access_token,
+        body: JSON.stringify({
+          merchant_pattern: pattern,
+          canonical_merchant: merchantFixName.trim(),
+          category_override: merchantFixCategory.trim() || null,
+        }),
+      });
+      setEditingSub(null);
+      setMerchantFixName("");
+      setMerchantFixCategory("");
+      await load();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to update merchant details");
+    } finally {
+      setMerchantFixBusy(false);
+    }
+  };
+
+  const markNotRecurring = async (sub: Sub) => {
+    if (!session?.access_token) return;
+    const merchantKey = String(sub.raw?.merchant_key || sub.merchant_name || sub.name || "").trim();
+    if (!merchantKey) return;
+    setErr(null);
+    try {
+      await api("/subscriptions/merchant-recurring-preference", {
+        method: "POST",
+        accessToken: session.access_token,
+        body: JSON.stringify({ merchant_key: merchantKey, isRecurring: false }),
+      });
+      await load();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Failed to update recurring status");
+    }
+  };
 
   const monthlyOnly = useMemo(
     () => subs.filter((s) => (s.frequency ?? "").toLowerCase().includes("month")),
@@ -163,13 +242,89 @@ export default function Subscriptions() {
         </div>
       </section>
 
-      <RecurringTable title="Upcoming" rows={upcoming} />
-      <RecurringTable title="Complete" rows={complete} />
+      <RecurringTable title="Upcoming" rows={upcoming} onViewMerchant={setViewingSub} onEditMerchant={openMerchantFix} onMarkNotRecurring={markNotRecurring} />
+      <RecurringTable title="Complete" rows={complete} onViewMerchant={setViewingSub} onEditMerchant={openMerchantFix} onMarkNotRecurring={markNotRecurring} />
+      {editingSub ? (
+        <div role="presentation" className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4" onClick={() => setEditingSub(null)}>
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl bg-surface-container-lowest border border-outline-variant/20 p-4 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h4 className="font-headline text-base font-semibold text-on-surface">Correct merchant and category</h4>
+            <p className="text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Corrections apply to similar recurring merchant descriptions. Merchant key:{" "}
+              <span className="font-mono text-[11px] text-on-surface">{editingSub.raw?.merchant_key ?? "—"}</span>
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label htmlFor="sub-fix-name" className="block text-xs font-medium text-on-surface-variant mb-1">Display name</label>
+                <input
+                  id="sub-fix-name"
+                  ref={merchantFixNameRef}
+                  value={merchantFixName}
+                  onChange={(e) => setMerchantFixName(e.target.value)}
+                  className="w-full rounded-lg border border-outline-variant/20 px-3 py-2 text-sm bg-surface-container-lowest"
+                />
+              </div>
+              <div>
+                <label htmlFor="sub-fix-category" className="block text-xs font-medium text-on-surface-variant mb-1">Category</label>
+                <select
+                  id="sub-fix-category"
+                  value={merchantFixCategory}
+                  onChange={(e) => setMerchantFixCategory(e.target.value)}
+                  className="w-full rounded-lg border border-outline-variant/20 px-3 py-2 text-sm bg-surface-container-lowest"
+                >
+                  <option value="">Use automatic category</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setEditingSub(null)} className="text-sm text-on-surface-variant px-3 py-2 rounded-lg hover:bg-surface-container-high/80">
+                Cancel
+              </button>
+              <button type="button" disabled={merchantFixBusy} onClick={() => void saveMerchantFix()} className="rounded-lg bg-primary text-on-primary px-4 py-2 text-sm font-medium disabled:opacity-60">
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {viewingSub ? (
+        <div role="presentation" className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4" onClick={() => setViewingSub(null)}>
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl bg-surface-container-lowest border border-outline-variant/20 p-4 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h4 className="font-headline text-base font-semibold text-on-surface">Merchant details</h4>
+            <div className="mt-3 space-y-2 text-sm">
+              <p className="text-on-surface"><span className="text-on-surface-variant">Display:</span> {cleanDisplayMerchant(viewingSub.merchant_name || viewingSub.name)}</p>
+              <p className="text-on-surface"><span className="text-on-surface-variant">Merchant key:</span> {viewingSub.raw?.merchant_key ?? "—"}</p>
+              <p className="text-on-surface"><span className="text-on-surface-variant">Category:</span> {viewingSub.raw?.category || "Subscription"}</p>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button type="button" onClick={() => setViewingSub(null)} className="text-sm text-on-surface-variant px-3 py-2 rounded-lg hover:bg-surface-container-high/80">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function RecurringTable({ title, rows }: { title: string; rows: Sub[] }) {
+function RecurringTable({
+  title,
+  rows,
+  onViewMerchant,
+  onEditMerchant,
+  onMarkNotRecurring,
+}: {
+  title: string;
+  rows: Sub[];
+  onViewMerchant: (sub: Sub) => void;
+  onEditMerchant: (sub: Sub) => void;
+  onMarkNotRecurring: (sub: Sub) => void;
+}) {
   return (
     <section className="rounded-xl border border-outline-variant/25 bg-surface-container-lowest overflow-hidden">
       <div className="px-5 py-3 border-b border-outline-variant/20 flex items-center justify-between">
@@ -188,6 +343,7 @@ function RecurringTable({ title, rows }: { title: string; rows: Sub[] }) {
                 <th className="px-4 py-3 font-medium">Payment Account</th>
                 <th className="px-4 py-3 font-medium">Category</th>
                 <th className="px-4 py-3 font-medium text-right">Amount</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/15">
@@ -213,6 +369,32 @@ function RecurringTable({ title, rows }: { title: string; rows: Sub[] }) {
                     </td>
                     <td className="px-4 py-3 text-sm text-right font-medium text-primary">
                       {money(s.amount)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <RowActionMenu
+                        label="Recurring actions"
+                        items={[
+                          {
+                            id: "view",
+                            label: "View merchant",
+                            icon: "visibility",
+                            onClick: () => onViewMerchant(s),
+                          },
+                          {
+                            id: "edit",
+                            label: "Edit merchant details",
+                            icon: "edit",
+                            onClick: () => onEditMerchant(s),
+                          },
+                          {
+                            id: "not-recurring",
+                            label: "Mark merchant as not recurring",
+                            icon: "close",
+                            variant: "danger",
+                            onClick: () => onMarkNotRecurring(s),
+                          },
+                        ]}
+                      />
                     </td>
                   </tr>
                 );
