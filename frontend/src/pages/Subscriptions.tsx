@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
+import { cleanDisplayMerchant, MerchantLogo } from "../lib/merchantBranding";
 
 type Sub = {
   id: string;
@@ -17,25 +18,6 @@ type Sub = {
 
 type RecurringTab = "monthly" | "all";
 
-const LOGO_DOMAIN_BY_MERCHANT: Record<string, string> = {
-  cursor: "cursor.com",
-  google: "google.com",
-  disney: "disneyplus.com",
-  "disney plus": "disneyplus.com",
-  netflix: "netflix.com",
-  spotify: "spotify.com",
-  hulu: "hulu.com",
-  amazon: "amazon.com",
-  doordash: "doordash.com",
-  optimum: "optimum.net",
-  "at&t": "att.com",
-  atandt: "att.com",
-  "home depot": "homedepot.com",
-  "real green service": "trugreen.com",
-  "signature pest management": "signaturepest.com",
-  "pedernales electric cooperative": "pec.coop",
-};
-
 function money(v: number | null | undefined) {
   if (!Number.isFinite(v)) return "—";
   return Number(v).toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -50,37 +32,6 @@ function monthlyEquivalent(amount: number | null, frequency: string | null): num
   return amount;
 }
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`.toUpperCase();
-  return name.slice(0, 2).toUpperCase() || "?";
-}
-
-function normalizeMerchantKey(name: string | null | undefined) {
-  return String(name ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9& ]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function logoUrlForMerchant(merchantName: string): string | null {
-  const key = normalizeMerchantKey(merchantName);
-  const domain = LOGO_DOMAIN_BY_MERCHANT[key];
-  if (!domain) return null;
-  return `https://logo.clearbit.com/${domain}`;
-}
-
-function cleanDisplayMerchant(name: string): string {
-  const source = String(name ?? "").trim();
-  if (!source) return "Unknown";
-  const cleaned = source
-    .replace(/\b(rock|johnson|cedar|burbank|park|city|serviittle)\b/gi, " ")
-    .replace(/\b(tx|ca|ar|ny|nj|fl|il|oh|wa|pa|co)\b/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return cleaned || source;
-}
 
 function dateLabel(date: string | null) {
   if (!date) return "—";
@@ -93,27 +44,6 @@ function dateLabel(date: string | null) {
   if (diffDays === 0) return `${prefix} (Today)`;
   if (diffDays > 0) return `${prefix} (${diffDays} days)`;
   return `${prefix} (${Math.abs(diffDays)} days ago)`;
-}
-
-function MerchantLogo({ merchantName }: { merchantName: string }) {
-  const [failed, setFailed] = useState(false);
-  const logoUrl = logoUrlForMerchant(merchantName);
-  if (!logoUrl || failed) {
-    return (
-      <div className="h-8 w-8 rounded-full bg-surface-container text-primary text-xs font-semibold flex items-center justify-center shrink-0">
-        {initials(merchantName)}
-      </div>
-    );
-  }
-  return (
-    <img
-      src={logoUrl}
-      alt={`${merchantName} logo`}
-      className="h-8 w-8 rounded-full border border-outline-variant/30 bg-white object-cover shrink-0"
-      onError={() => setFailed(true)}
-      loading="lazy"
-    />
-  );
 }
 
 export default function Subscriptions() {

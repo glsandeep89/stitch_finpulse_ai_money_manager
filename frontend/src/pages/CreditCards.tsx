@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api";
 import type { AiOutputsResponse } from "../lib/aiOutputs";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { cleanDisplayMerchant, MerchantLogo } from "../lib/merchantBranding";
 
 type CreditSnapshot = {
   accounts: {
@@ -764,7 +765,10 @@ export default function CreditCards() {
               <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 text-sm rounded-xl border border-outline-variant/15 px-3 py-2">
                 <div>
                   <p className="font-medium flex items-center gap-2">
-                    {r.merchant_name ?? "Unknown merchant"}
+                    <span className="inline-flex items-center gap-2">
+                      <MerchantLogo merchantName={cleanDisplayMerchant(r.merchant_name)} sizeClass="h-6 w-6" />
+                      <span>{cleanDisplayMerchant(r.merchant_name) || "Unknown merchant"}</span>
+                    </span>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full ${refundStatusChip(r.status)}`}>{r.status}</span>
                   </p>
                   <p className="text-xs text-on-surface-variant">Posted {r.trans_date}</p>
