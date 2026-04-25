@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string;
   readonly VITE_SUPABASE_ANON_KEY: string;
   readonly VITE_API_URL: string;
+  /** Optional Logo.dev publishable key for higher-quality merchant logos (see README). */
+  readonly VITE_MERCHANT_LOGO_TOKEN?: string;
 }
 
 interface ImportMeta {

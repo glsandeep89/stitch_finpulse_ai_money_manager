@@ -28,6 +28,7 @@ Frontend (Vite) — prefix `VITE_`:
 | `VITE_SUPABASE_URL` | Same as `SUPABASE_URL` |
 | `VITE_SUPABASE_ANON_KEY` | Anon public key |
 | `VITE_API_URL` | API base, e.g. `http://localhost:3001` |
+| `VITE_MERCHANT_LOGO_TOKEN` | Optional [Logo.dev](https://www.logo.dev) publishable key for sharper merchant logos; without it the app uses favicon fallbacks (Google / DuckDuckGo) |
 
 Optional: `CRON_SECRET` (header `x-cron-secret` for `POST /jobs/sync-transactions`), `FINPULSE_API_KEY`, `FRONTEND_URL` (CORS).
 
