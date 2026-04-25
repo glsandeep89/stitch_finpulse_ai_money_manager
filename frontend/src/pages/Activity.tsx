@@ -73,10 +73,11 @@ export default function Activity({
   hideTopSummaryCards = false,
   hideAssistantTools = false,
 }: ActivityProps) {
+  // Kept for backward compatibility with existing call sites; summary cards were removed.
+  void hideTopSummaryCards;
   const { session } = useAuth();
   const [searchParams] = useSearchParams();
   const [txs, setTxs] = useState<Tx[]>([]);
-  const [merchants, setMerchants] = useState<{ merchant_name: string; total_amount: number }[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const defaults = monthBounds();
@@ -217,15 +218,6 @@ export default function Activity({
       const q = params.toString() ? `?${params.toString()}` : "";
       const t = await api<{ transactions: Tx[] }>(`/transactions${q}`, { accessToken: session.access_token });
       setTxs(t.transactions);
-      const mf = new URLSearchParams();
-      if (f.dateFrom) mf.set("from", f.dateFrom);
-      if (f.dateTo) mf.set("to", f.dateTo);
-      const mq = mf.toString() ? `?${mf.toString()}` : "";
-      const m = await api<{ merchants: { merchant_name: string; total_amount: number }[] }>(
-        `/analytics/spending-by-merchant${mq}`,
-        { accessToken: session.access_token }
-      );
-      setMerchants(m.merchants.slice(0, 12));
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -330,28 +322,18 @@ export default function Activity({
     return source.filter((t) => t.plaid_account_id && selectedAccountIds.has(t.plaid_account_id));
   }, [txs, selectedAccountIds, visibleAccounts, defaultCreditOnly, defaultInvestmentScope]);
 
-  const topMerchant = merchants[0];
-  const topMerchantAmount = topMerchant ? Math.abs(topMerchant.total_amount) : 0;
-
-  const categoryTotals = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const t of filteredTxs) {
-      const c = primaryCategory(t);
-      map.set(c, (map.get(c) ?? 0) + Math.abs(Number(t.amount)));
-    }
-    const total = [...map.values()].reduce((a, b) => a + b, 0) || 1;
-    return [...map.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 2)
-      .map(([name, amt]) => ({ name, pct: (amt / total) * 100 }));
-  }, [filteredTxs]);
-
   const groupedSpend = useMemo(() => {
     const by = new Map<string, number>();
     for (const t of filteredTxs) {
       const amt = Number(t.amount);
-      if (flowView === "expense" && amt <= 0) continue;
-      if (flowView === "income" && amt >= 0) continue;
+      const isIncomeCategory = (t.category ?? []).some((c) =>
+        /income|paycheck|salary|payroll|interest|dividend|deposit|benefit/i.test(c)
+      );
+      // Supports mixed provider sign conventions by using both sign and semantic category hints.
+      const isLikelyExpense = amt > 0 || (amt < 0 && !isIncomeCategory);
+      const isLikelyIncome = amt < 0 && isIncomeCategory;
+      if (flowView === "expense" && !isLikelyExpense) continue;
+      if (flowView === "income" && !isLikelyIncome) continue;
       const key = groupView === "category" ? primaryCategory(t) : (t.merchant_name ?? "Unknown");
       by.set(key, (by.get(key) ?? 0) + Math.abs(amt));
     }
@@ -686,54 +668,6 @@ export default function Activity({
         </aside>
 
         <div className="xl:col-span-9 space-y-8">
-          {!hideTopSummaryCards ? <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow ring-1 ring-outline-variant/10 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <span className="material-symbols-outlined text-6xl">flight_takeoff</span>
-              </div>
-              <p className="font-body text-xs text-on-surface-variant mb-1">Top Volume</p>
-              <h4 className="font-headline text-lg font-bold text-on-surface mb-4 relative z-10">
-                {topMerchant?.merchant_name ?? "—"}
-              </h4>
-              <div className="flex items-end justify-between relative z-10">
-                <span className="font-headline text-2xl text-on-surface tracking-tight">
-                  {topMerchant
-                    ? topMerchantAmount.toLocaleString(undefined, { style: "currency", currency: "USD" })
-                    : "—"}
-                </span>
-              </div>
-            </div>
-            <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow ring-1 ring-outline-variant/10 relative overflow-hidden group md:col-span-2 bg-gradient-to-br from-surface-container-lowest to-surface-container-low">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <p className="font-body text-xs text-on-surface-variant mb-1">Concentration</p>
-                  <h4 className="font-headline text-lg font-bold text-on-surface">Spending by category</h4>
-                </div>
-                <span className="material-symbols-outlined text-on-surface-variant">more_horiz</span>
-              </div>
-              <div className="space-y-4">
-                {categoryTotals.length === 0 ? (
-                  <p className="text-sm text-on-surface-variant font-body">No data</p>
-                ) : (
-                  categoryTotals.map((row, idx) => (
-                    <div key={row.name}>
-                      <div className="flex justify-between text-xs font-body mb-1">
-                        <span className="text-on-surface font-medium">{row.name}</span>
-                        <span className="text-on-surface-variant">{Math.round(row.pct)}%</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
-                        <div
-                          className={`h-full bg-primary rounded-full ${idx === 1 ? "opacity-60" : ""}`}
-                          style={{ width: `${Math.min(100, row.pct)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div> : null}
-
           <section className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow ring-1 ring-outline-variant/10">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h3 className="font-headline text-lg font-semibold text-on-surface">Spend breakdown</h3>

@@ -465,11 +465,11 @@ export default function CreditCards() {
           <p className="text-xs uppercase tracking-wide text-on-surface-variant">Spending this cycle</p>
           <p className="text-2xl font-headline font-bold mt-1">{money(spendingThisCycle)}</p>
         </div>
-        <a href="#cc-subscriptions" className={`${sectionShell("p-5 block hover:border-primary/35 transition-colors")}`}>
+        <Link to="/subscriptions" className={`${sectionShell("p-5 block hover:border-primary/35 transition-colors")}`}>
           <p className="text-xs uppercase tracking-wide text-on-surface-variant">Active recurring payments</p>
           <p className="text-2xl font-headline font-bold mt-1">{recurringPaymentsCount}</p>
           <p className="text-[11px] text-primary mt-1">Open recurring tracker</p>
-        </a>
+        </Link>
         <div className={`${sectionShell("p-5")}`}>
           <p className="text-xs uppercase tracking-wide text-on-surface-variant">Refunds this cycle</p>
           <p className="text-2xl font-headline font-bold mt-1">{money(refundsThisCycle)}</p>
@@ -477,7 +477,6 @@ export default function CreditCards() {
       </section>
 
       <nav className={`${sectionShell("p-3 flex flex-wrap gap-2")}`} aria-label="Credit card section shortcuts">
-        <a href="#cc-subscriptions" className="px-3 py-1.5 rounded-full bg-surface-container text-sm hover:bg-surface-container-high">Subscriptions</a>
         <a href="#cc-refunds" className="px-3 py-1.5 rounded-full bg-surface-container text-sm hover:bg-surface-container-high">Refunds</a>
       </nav>
 
@@ -800,30 +799,6 @@ export default function CreditCards() {
         )}
       </section>
 
-      <section id="cc-subscriptions" className={`${sectionShell("p-5 md:p-6")}`}>
-        <h2 className="font-headline font-semibold mb-3 text-lg">Subscriptions</h2>
-        {(data?.subscriptions ?? []).length === 0 ? (
-          <p className="text-sm text-on-surface-variant">No recurring card subscriptions detected.</p>
-        ) : (
-          <div className="space-y-2">
-            {data?.subscriptions.slice(0, 12).map((s) => (
-              <div key={s.id} className="flex items-center justify-between text-sm rounded-xl border border-outline-variant/15 px-3 py-2">
-                <div>
-                  <p className="font-medium">{s.name}</p>
-                  <p className="text-xs text-on-surface-variant">
-                    {s.next_payment_date ? `Next: ${s.next_payment_date}` : "Next date unavailable"}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold">{s.amount != null ? money(Number(s.amount)) : "—"}</p>
-                  <p className="text-xs text-on-surface-variant">{s.frequency ?? "Recurring"}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
       <section id="cc-refunds" className={`${sectionShell("p-5 md:p-6")}`}>
         <h2 className="font-headline font-semibold mb-3 text-lg">Refund tracker</h2>
         {refunds.length === 0 ? (
@@ -858,15 +833,6 @@ export default function CreditCards() {
         )}
       </section>
 
-      <section className={`${sectionShell("p-4 md:p-5")}`}>
-        <h2 className="font-headline font-semibold text-lg">Transactions workspace moved</h2>
-        <p className="text-xs text-on-surface-variant mt-1">
-          Credit-card transactions are now part of the centralized Transactions page.
-        </p>
-        <Link to="/transactions" className="text-sm text-primary hover:underline mt-2 inline-block">
-          Open Transactions
-        </Link>
-      </section>
     </div>
   );
 }

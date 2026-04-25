@@ -232,9 +232,20 @@ export async function getSubscriptions(userIds: string[]) {
   const txs = (await listTransactions(userIds, { limit: 5000 })) as {
     user_id: string;
     merchant_name: string | null;
+    plaid_account_id: string | null;
+    category: string[] | null;
     amount: number;
     trans_date: string;
   }[];
+  const { data: linkedAccounts } = await sb
+    .from("linked_accounts")
+    .select("user_id,plaid_account_id,name")
+    .in("user_id", userIds);
+  const accountNameMap = new Map<string, string>();
+  for (const a of linkedAccounts ?? []) {
+    const key = `${String(a.user_id)}::${String(a.plaid_account_id)}`;
+    accountNameMap.set(key, String(a.name ?? "Account"));
+  }
 
   const forcedRecurring = new Set<string>();
   const forcedExcluded = new Set<string>();
@@ -246,7 +257,18 @@ export async function getSubscriptions(userIds: string[]) {
     if (raw.force_recurring === false) forcedExcluded.add(k);
   }
 
-  const byMerchant = new Map<string, { user_id: string; amounts: number[]; dates: Date[]; name: string }>();
+  const byMerchant = new Map<
+    string,
+    {
+      user_id: string;
+      amounts: number[];
+      dates: Date[];
+      name: string;
+      payment_account_name: string | null;
+      payment_account_id: string | null;
+      category: string | null;
+    }
+  >();
   for (const t of txs) {
     const amt = Number(t.amount);
     if (!Number.isFinite(amt) || amt === 0) continue;
@@ -260,7 +282,15 @@ export async function getSubscriptions(userIds: string[]) {
       amounts: [],
       dates: [],
       name: canonicalMerchantName(t.merchant_name),
+      payment_account_name: null as string | null,
+      payment_account_id: null as string | null,
+      category: null as string | null,
     };
+    if (t.plaid_account_id) {
+      cur.payment_account_id = t.plaid_account_id;
+      cur.payment_account_name = accountNameMap.get(`${t.user_id}::${t.plaid_account_id}`) ?? null;
+    }
+    cur.category = ((t.category ?? [])[0] as string | undefined) ?? cur.category;
     cur.amounts.push(amt);
     cur.dates.push(d);
     byMerchant.set(key, cur);
@@ -317,6 +347,9 @@ export async function getSubscriptions(userIds: string[]) {
         source: "auto-recurring-v1",
         merchant_key: key,
         sample_count: group.dates.length,
+        payment_account_name: group.payment_account_name,
+        payment_account_id: group.payment_account_id,
+        category: group.category,
         force_recurring: forcedRecurring.has(key) ? true : forcedExcluded.has(key) ? false : null,
       },
     });
@@ -328,6 +361,8 @@ export async function getSubscriptions(userIds: string[]) {
       .select("id")
       .eq("user_id", row.user_id)
       .eq("name", row.name)
+      .order("updated_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
     if (existingErr) throw existingErr;
     if (existingRow?.id) {
@@ -622,13 +657,38 @@ function isCardPaymentLike(t: { amount: number; category: string[] | null; merch
   );
 }
 
+function isIncomeLikeTx(t: { amount: number; category: string[] | null; merchant_name: string | null }): boolean {
+  const cat = (t.category ?? []).join(" ").toLowerCase();
+  const merchant = asLower(t.merchant_name);
+  const amount = Number(t.amount);
+  const incomeHint =
+    /(payroll|paycheck|salary|direct deposit|deposit|income|bonus|interest|dividend|benefit|ssi|social security|tax refund|irs|treasury|ach credit|zelle in|venmo cashout)/.test(
+      `${cat} ${merchant}`
+    );
+  if (!incomeHint) return false;
+  // In this app, credits can appear as either sign depending on source feed conventions.
+  return amount !== 0;
+}
+
 function isRefundLikeTx(t: { amount: number; category: string[] | null; merchant_name: string | null }): boolean {
   const cat = (t.category ?? []).join(" ").toLowerCase();
   const merchant = asLower(t.merchant_name);
   const amount = Number(t.amount);
   if (isCardPaymentLike(t)) return false;
+  if (isIncomeLikeTx(t)) return false;
   if (amount >= 0) return false;
-  return cat.includes("refund") || cat.includes("return") || merchant.includes("refund") || merchant.includes("return");
+  const hasRefundSignal =
+    cat.includes("refund") ||
+    cat.includes("return") ||
+    cat.includes("reversal") ||
+    cat.includes("merchant credit") ||
+    merchant.includes("refund") ||
+    merchant.includes("return") ||
+    merchant.includes("reversal");
+  if (!hasRefundSignal) return false;
+  // Exclude non-merchant/system credits even when category text is noisy.
+  const looksSystemCredit = /(deposit|income|payroll|salary|payment|transfer|ach)/.test(`${cat} ${merchant}`);
+  return !looksSystemCredit;
 }
 
 function asNum(value: unknown, fallback = 0): number {
