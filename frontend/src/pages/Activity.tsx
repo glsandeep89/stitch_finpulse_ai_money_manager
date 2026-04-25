@@ -107,9 +107,6 @@ export default function Activity({
   const [flowView, setFlowView] = useState<"expense" | "income">("expense");
   const [recurringBusyTx, setRecurringBusyTx] = useState<string | null>(null);
   const [recurringMarked, setRecurringMarked] = useState<Record<string, "yes" | "no">>({});
-  const [merchantOverrides, setMerchantOverrides] = useState<
-    { id: string; merchant_pattern: string; canonical_merchant: string; category_override: string | null }[]
-  >([]);
   const [editingMerchantTx, setEditingMerchantTx] = useState<Tx | null>(null);
   const [merchantFixName, setMerchantFixName] = useState("");
   const [merchantFixCategory, setMerchantFixCategory] = useState("");
@@ -130,16 +127,25 @@ export default function Activity({
     if (c !== null) setCategoryFilter(c);
   }, [searchParams]);
 
+  useEffect(() => {
+    if (!editingMerchantTx) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setEditingMerchantTx(null);
+    };
+    window.addEventListener("keydown", onKey);
+    const id = window.requestAnimationFrame(() => merchantFixNameRef.current?.focus());
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.cancelAnimationFrame(id);
+    };
+  }, [editingMerchantTx]);
+
   const loadMeta = useCallback(async () => {
     if (!session?.access_token) return;
     try {
-      const [cats, acc, overrides] = await Promise.all([
+      const [cats, acc] = await Promise.all([
         api<{ categories: string[] }>("/meta/transaction-categories", { accessToken: session.access_token }),
         api<{ accounts: Record<string, unknown>[] }>("/plaid/accounts", { accessToken: session.access_token }),
-        api<{ overrides: { id: string; merchant_pattern: string; canonical_merchant: string; category_override: string | null }[] }>(
-          "/meta/merchant-overrides",
-          { accessToken: session.access_token }
-        ).catch(() => ({ overrides: [] })),
       ]);
       setCategories(cats.categories);
       setAccounts(
@@ -150,7 +156,6 @@ export default function Activity({
           subtype: String(a.subtype ?? ""),
         }))
       );
-      setMerchantOverrides(overrides.overrides ?? []);
     } catch {
       /* optional */
     }
@@ -432,10 +437,12 @@ export default function Activity({
     }
   };
 
+  const merchantFixNameRef = useRef<HTMLInputElement>(null);
+
   const openMerchantFix = (tx: Tx) => {
     setEditingMerchantTx(tx);
     setMerchantFixName(cleanDisplayMerchant(tx.merchant_name));
-    setMerchantFixCategory(primaryCategory(tx));
+    setMerchantFixCategory("");
   };
 
   const saveMerchantFix = async () => {
@@ -445,7 +452,7 @@ export default function Activity({
     setMerchantFixBusy(true);
     setErr(null);
     try {
-      const created = await api<{ id: string; merchant_pattern: string; canonical_merchant: string; category_override: string | null }>(
+      await api<{ id: string; merchant_pattern: string; canonical_merchant: string; category_override: string | null }>(
         "/meta/merchant-overrides",
         {
           method: "POST",
@@ -457,16 +464,18 @@ export default function Activity({
           }),
         }
       );
-      setMerchantOverrides((prev) => {
-        const filtered = prev.filter((p) => p.id !== created.id);
-        return [created, ...filtered];
-      });
       const canonical = merchantFixName.trim();
-      const category = merchantFixCategory.trim() || "Uncategorized";
+      const overrideCat = merchantFixCategory.trim();
       setTxs((prev) =>
         prev.map((t) =>
           t.plaid_transaction_id === editingMerchantTx.plaid_transaction_id
-            ? { ...t, merchant_name: canonical, category: [category] }
+            ? {
+                ...t,
+                merchant_name: canonical,
+                category: overrideCat
+                  ? [overrideCat]
+                  : (editingMerchantTx.category?.length ? editingMerchantTx.category : ["Uncategorized"]),
+              }
             : t
         )
       );
@@ -896,20 +905,20 @@ export default function Activity({
                       >
                         <td className="px-6 py-5 font-body text-sm text-on-surface-variant">{t.trans_date}</td>
                         <td className="px-6 py-5">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
                             <MerchantLogo merchantName={cleanDisplayMerchant(t.merchant_name)} sizeClass="h-8 w-8" />
-                            <div className="flex items-center gap-2">
-                              <span className="font-body font-medium text-on-surface">
-                                {cleanDisplayMerchant(t.merchant_name)}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => openMerchantFix(t)}
-                                className="text-[11px] text-primary hover:underline"
-                              >
-                                Fix
-                              </button>
-                            </div>
+                            <span className="font-body font-medium text-on-surface truncate min-w-0 flex-1">
+                              {cleanDisplayMerchant(t.merchant_name)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openMerchantFix(t)}
+                              title="Correct merchant and category"
+                              aria-label="Correct merchant and category"
+                              className="shrink-0 rounded-full p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-primary transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[18px] leading-none">edit</span>
+                            </button>
                           </div>
                         </td>
                         <td className="px-6 py-5 font-body text-sm text-on-surface-variant">
@@ -965,33 +974,64 @@ export default function Activity({
         </div>
       </div>
       {editingMerchantTx ? (
-        <div className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl bg-surface-container-lowest border border-outline-variant/20 p-4">
-            <h4 className="font-headline text-base font-semibold text-on-surface">Fix merchant</h4>
-            <p className="text-xs text-on-surface-variant mt-1">
-              Raw: {editingMerchantTx.raw_merchant_name ?? editingMerchantTx.merchant_name ?? "—"}
+        <div
+          role="presentation"
+          className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4"
+          onClick={() => setEditingMerchantTx(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="merchant-fix-title"
+            className="w-full max-w-md rounded-xl bg-surface-container-lowest border border-outline-variant/20 p-4 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 id="merchant-fix-title" className="font-headline text-base font-semibold text-on-surface">
+              Correct merchant and category
+            </h4>
+            <p className="text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Shown name for this merchant. Corrections apply to similar statement descriptions. Bank text:{" "}
+              <span className="font-mono text-[11px] text-on-surface">
+                {editingMerchantTx.raw_merchant_name ?? editingMerchantTx.merchant_name ?? "—"}
+              </span>
             </p>
-            <p className="text-[10px] text-on-surface-variant mt-1">Saved learned rules: {merchantOverrides.length}</p>
-            <div className="mt-3 space-y-2">
-              <label className="block text-xs text-on-surface-variant">Canonical merchant</label>
-              <input
-                value={merchantFixName}
-                onChange={(e) => setMerchantFixName(e.target.value)}
-                className="w-full rounded-lg border border-outline-variant/20 px-3 py-2 text-sm"
-              />
-              <label className="block text-xs text-on-surface-variant">Category override (optional)</label>
-              <input
-                value={merchantFixCategory}
-                onChange={(e) => setMerchantFixCategory(e.target.value)}
-                className="w-full rounded-lg border border-outline-variant/20 px-3 py-2 text-sm"
-                placeholder="Groceries"
-              />
+            <div className="mt-4 space-y-3">
+              <div>
+                <label htmlFor="merchant-fix-name" className="block text-xs font-medium text-on-surface-variant mb-1">
+                  Display name
+                </label>
+                <input
+                  id="merchant-fix-name"
+                  ref={merchantFixNameRef}
+                  value={merchantFixName}
+                  onChange={(e) => setMerchantFixName(e.target.value)}
+                  className="w-full rounded-lg border border-outline-variant/20 px-3 py-2 text-sm bg-surface-container-lowest"
+                />
+              </div>
+              <div>
+                <label htmlFor="merchant-fix-category" className="block text-xs font-medium text-on-surface-variant mb-1">
+                  Category
+                </label>
+                <select
+                  id="merchant-fix-category"
+                  value={merchantFixCategory}
+                  onChange={(e) => setMerchantFixCategory(e.target.value)}
+                  className="w-full rounded-lg border border-outline-variant/20 px-3 py-2 text-sm bg-surface-container-lowest"
+                >
+                  <option value="">Use automatic category</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="mt-4 flex items-center justify-end gap-2">
+            <div className="mt-5 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setEditingMerchantTx(null)}
-                className="text-xs text-on-surface-variant px-3 py-2"
+                className="text-sm text-on-surface-variant px-3 py-2 rounded-lg hover:bg-surface-container-high/80"
               >
                 Cancel
               </button>
@@ -999,7 +1039,7 @@ export default function Activity({
                 type="button"
                 disabled={merchantFixBusy}
                 onClick={() => void saveMerchantFix()}
-                className="rounded-lg bg-primary text-on-primary px-3 py-2 text-xs font-medium disabled:opacity-60"
+                className="rounded-lg bg-primary text-on-primary px-4 py-2 text-sm font-medium disabled:opacity-60"
               >
                 Save
               </button>
