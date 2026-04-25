@@ -22,6 +22,9 @@ import {
   listCategoryMappings,
   createCategoryMapping,
   deleteCategoryMapping,
+  listUserMerchantOverrides,
+  createUserMerchantOverride,
+  deleteUserMerchantOverride,
   listTransactionLabels,
   upsertTransactionLabel,
   listRefundTracker,
@@ -221,6 +224,41 @@ dataRouter.delete("/meta/category-mappings/:id", async (req, res) => {
   try {
     const id = z.string().uuid().parse(req.params.id);
     await deleteCategoryMapping(req.userId!, id);
+    res.json({ ok: true });
+  } catch (e: unknown) {
+    res.status(400).json({ error: (e as Error).message });
+  }
+});
+
+dataRouter.get("/meta/merchant-overrides", async (req, res) => {
+  try {
+    const data = await listUserMerchantOverrides(scopedIds(req));
+    res.json({ overrides: data });
+  } catch (e: unknown) {
+    res.status(400).json({ error: (e as Error).message });
+  }
+});
+
+dataRouter.post("/meta/merchant-overrides", async (req, res) => {
+  try {
+    const body = z
+      .object({
+        merchant_pattern: z.string().min(1).max(220),
+        canonical_merchant: z.string().min(1).max(220),
+        category_override: z.string().max(220).optional().nullable(),
+      })
+      .parse(req.body ?? {});
+    const data = await createUserMerchantOverride(req.userId!, body);
+    res.json(data);
+  } catch (e: unknown) {
+    res.status(400).json({ error: (e as Error).message });
+  }
+});
+
+dataRouter.delete("/meta/merchant-overrides/:id", async (req, res) => {
+  try {
+    const id = z.string().uuid().parse(req.params.id);
+    await deleteUserMerchantOverride(req.userId!, id);
     res.json({ ok: true });
   } catch (e: unknown) {
     res.status(400).json({ error: (e as Error).message });
