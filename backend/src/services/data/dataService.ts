@@ -116,7 +116,13 @@ export async function listTransactions(
     }
     if (!resolvedCategory) {
       const firstNative = ((row as { category?: string[] | null }).category ?? [])[0] ?? null;
-      resolvedCategory = firstNative && firstNative.trim() ? firstNative : systemCategoryFromMerchant(merchant);
+      const systemCategory = systemCategoryFromMerchant(merchant);
+      resolvedCategory =
+        systemCategory !== "Uncategorized"
+          ? systemCategory
+          : firstNative && firstNative.trim()
+            ? firstNative
+            : "Uncategorized";
     }
     return {
       ...row,
@@ -315,16 +321,20 @@ export async function getSubscriptions(userIds: string[]) {
 
     let frequency = "monthly";
     let next: string | null = null;
+    let confidence = 0.35;
     if (group.dates.length >= 2) {
       const gaps: number[] = [];
       for (let i = 1; i < group.dates.length; i++) {
         gaps.push(Math.round((group.dates[i]!.getTime() - group.dates[i - 1]!.getTime()) / 86400000));
       }
       const mean = gaps.reduce((s, n) => s + n, 0) / gaps.length;
+      const gapSpread = Math.max(...gaps) - Math.min(...gaps);
       if (mean <= 10) frequency = "weekly";
       else if (mean <= 20) frequency = "biweekly";
       else if (mean <= 40) frequency = "monthly";
       else frequency = "quarterly";
+      confidence = group.dates.length >= 4 ? 0.9 : group.dates.length === 3 ? 0.7 : 0.55;
+      if (gapSpread > 10) confidence -= 0.2;
       const last = group.dates[group.dates.length - 1]!;
       const nextDate = new Date(last);
       nextDate.setUTCDate(nextDate.getUTCDate() + Math.max(7, Math.round(mean)));
@@ -347,6 +357,8 @@ export async function getSubscriptions(userIds: string[]) {
         source: "auto-recurring-v1",
         merchant_key: key,
         sample_count: group.dates.length,
+        recurrence_confidence: Number(Math.max(0, Math.min(1, confidence)).toFixed(2)),
+        needs_user_confirmation: !forcedRecurring.has(key) && group.dates.length < 3,
         payment_account_name: group.payment_account_name,
         payment_account_id: group.payment_account_id,
         category: group.category,
@@ -713,6 +725,13 @@ function toTitleCase(input: string): string {
 
 const MERCHANT_CLEAN_RULES: Array<{ pattern: RegExp; replacement: string }> = [
   { pattern: /sampay\*?\s*doordash|doordash|door dash/i, replacement: "DoorDash" },
+  { pattern: /sampay\*?\s*foodistaan|foodistaan/i, replacement: "Foodistaan" },
+  { pattern: /signature\s*pest/i, replacement: "Signature Pest Management" },
+  { pattern: /disney(\s*plus)?/i, replacement: "Disney+" },
+  { pattern: /pedernales\s*electric/i, replacement: "Pedernales Electric Cooperative" },
+  { pattern: /real\s*green\s*service|trugreen/i, replacement: "Real Green Service" },
+  { pattern: /zee5/i, replacement: "ZEE5" },
+  { pattern: /\boptimum\b/i, replacement: "Optimum" },
   { pattern: /home\s*depot|homedepot/i, replacement: "Home Depot" },
   { pattern: /\bchase\b/i, replacement: "Chase" },
   { pattern: /\bamerican\s+express\b|\bamex\b/i, replacement: "American Express" },
@@ -738,6 +757,7 @@ function canonicalMerchantName(raw: string | null | undefined): string {
     .replace(/^(payment|transfer)\s+/i, "")
     .replace(/[0-9]{3,}/g, " ")
     .replace(/\*/g, " ")
+    .replace(/\b(tx|ca|ar|ny|nj|fl|il|oh|wa|pa|co)\b/gi, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
 
@@ -750,10 +770,13 @@ function canonicalMerchantName(raw: string | null | undefined): string {
 function systemCategoryFromMerchant(merchant: string): string {
   const m = normalizeText(merchant);
   if (/(doordash|ubereats|grubhub|restaurant|cafe|coffee)/.test(m)) return "Restaurants";
+  if (/(disney|netflix|spotify|hulu|youtube|zee5|entertainment)/.test(m)) return "Entertainment & Recreation";
   if (/(home depot|lowes|ace hardware)/.test(m)) return "Home Improvements";
+  if (/(real green|trugreen|signature pest|pest)/.test(m)) return "Home Improvements";
   if (/(walmart|target|costco|whole foods|trader joes|heb|kroger|grocery)/.test(m)) return "Groceries";
   if (/(shell|chevron|exxon|fuel|gas)/.test(m)) return "Auto Maintenance";
-  if (/(verizon|att|t mobile|xfinity|spectrum|internet|phone)/.test(m)) return "Business Utilities & Communication";
+  if (/(verizon|att|t mobile|xfinity|spectrum|internet|phone)/.test(m)) return "Internet & Cable";
+  if (/(pedernales electric|electric|utility|utilities|water|power)/.test(m)) return "Business Utilities & Communication";
   if (/(amazon|best buy|shopping|store|retail)/.test(m)) return "Shopping";
   if (/(payroll|paycheck|salary)/.test(m)) return "Paychecks";
   if (/(interest)/.test(m)) return "Interest";
@@ -1141,6 +1164,19 @@ export async function listRefundTracker(userIds: string[]) {
 
   if (!(await tableExists())) return [];
 
+  const { data: existingEvents, error: existingErr } = await sb
+    .from("refund_events")
+    .select("id,user_id,plaid_transaction_id,status")
+    .in("user_id", userIds);
+  if (existingErr) throw existingErr;
+
+  const existingStatus = new Map<string, string>();
+  for (const row of existingEvents ?? []) {
+    const plaidTxId = String((row as { plaid_transaction_id?: string }).plaid_transaction_id ?? "");
+    const status = String((row as { status?: string }).status ?? "");
+    if (plaidTxId) existingStatus.set(plaidTxId, status);
+  }
+
   for (const tx of snapshot.refunds as {
     id: string;
     plaid_transaction_id: string;
@@ -1150,8 +1186,7 @@ export async function listRefundTracker(userIds: string[]) {
     trans_date: string;
     user_id?: string;
   }[]) {
-    const merchant = asLower(tx.merchant_name);
-    const status = merchant.includes("pending") ? "pending" : "manual";
+    const status = existingStatus.get(tx.plaid_transaction_id) ?? "pending";
     const { error } = await sb.from("refund_events").upsert(
       {
         user_id: tx.user_id ?? userIds[0],
@@ -1166,6 +1201,24 @@ export async function listRefundTracker(userIds: string[]) {
       { onConflict: "user_id,plaid_transaction_id" }
     );
     if (error) throw error;
+  }
+
+  const activeRefundIds = new Set(
+    (snapshot.refunds as { plaid_transaction_id: string }[]).map((r) => r.plaid_transaction_id)
+  );
+  const staleEventIds = (existingEvents ?? [])
+    .filter((row) => {
+      const plaidTxId = String((row as { plaid_transaction_id?: string }).plaid_transaction_id ?? "");
+      const status = String((row as { status?: string }).status ?? "");
+      if (!plaidTxId || activeRefundIds.has(plaidTxId)) return false;
+      // Keep explicit manual rows, remove stale auto-detected rows.
+      return status !== "manual";
+    })
+    .map((row) => String((row as { id?: string }).id ?? ""))
+    .filter(Boolean);
+  if (staleEventIds.length > 0) {
+    const { error: deleteErr } = await sb.from("refund_events").delete().in("id", staleEventIds);
+    if (deleteErr) throw deleteErr;
   }
 
   const { data, error } = await sb

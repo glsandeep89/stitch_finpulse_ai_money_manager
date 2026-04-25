@@ -20,6 +20,7 @@ type RecurringTab = "monthly" | "all";
 const LOGO_DOMAIN_BY_MERCHANT: Record<string, string> = {
   google: "google.com",
   disney: "disneyplus.com",
+  "disney plus": "disneyplus.com",
   netflix: "netflix.com",
   spotify: "spotify.com",
   hulu: "hulu.com",
@@ -30,6 +31,8 @@ const LOGO_DOMAIN_BY_MERCHANT: Record<string, string> = {
   atandt: "att.com",
   "home depot": "homedepot.com",
   "real green service": "trugreen.com",
+  "signature pest management": "signaturepest.com",
+  "pedernales electric cooperative": "pec.coop",
 };
 
 function money(v: number | null | undefined) {
@@ -65,6 +68,17 @@ function logoUrlForMerchant(merchantName: string): string | null {
   const domain = LOGO_DOMAIN_BY_MERCHANT[key];
   if (!domain) return null;
   return `https://logo.clearbit.com/${domain}`;
+}
+
+function cleanDisplayMerchant(name: string): string {
+  const source = String(name ?? "").trim();
+  if (!source) return "Unknown";
+  const cleaned = source
+    .replace(/\b(rock|johnson|cedar|burbank|park|city|serviittle)\b/gi, " ")
+    .replace(/\b(tx|ca|ar|ny|nj|fl|il|oh|wa|pa|co)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || source;
 }
 
 function dateLabel(date: string | null) {
@@ -246,29 +260,32 @@ function RecurringTable({ title, rows }: { title: string; rows: Sub[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/15">
-              {rows.map((s) => (
-                <tr key={s.id} className="hover:bg-surface-container-low/70">
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <MerchantLogo merchantName={s.name} />
-                      <div>
-                        <p className="text-sm font-medium text-primary">{s.name}</p>
-                        <p className="text-xs text-on-surface-variant">{s.frequency ?? "Recurring"}</p>
+              {rows.map((s) => {
+                const displayMerchant = cleanDisplayMerchant(s.merchant_name || s.name);
+                return (
+                  <tr key={s.id} className="hover:bg-surface-container-low/70">
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <MerchantLogo merchantName={displayMerchant} />
+                        <div>
+                          <p className="text-sm font-medium text-primary">{displayMerchant}</p>
+                          <p className="text-xs text-on-surface-variant">{s.frequency ?? "Recurring"}</p>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-on-surface">{dateLabel(s.next_payment_date)}</td>
-                  <td className="px-4 py-3 text-sm text-on-surface">
-                    {s.raw?.payment_account_name || "—"}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-on-surface">
-                    {s.raw?.category || "Subscription"}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-right font-medium text-primary">
-                    {money(s.amount)}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-on-surface">{dateLabel(s.next_payment_date)}</td>
+                    <td className="px-4 py-3 text-sm text-on-surface">
+                      {s.raw?.payment_account_name || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-on-surface">
+                      {s.raw?.category || "Subscription"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right font-medium text-primary">
+                      {money(s.amount)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

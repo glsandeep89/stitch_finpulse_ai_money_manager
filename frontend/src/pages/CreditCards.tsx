@@ -131,7 +131,6 @@ export default function CreditCards() {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [rewardsStatus, setRewardsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [dismissedNudges, setDismissedNudges] = useState<Record<string, boolean>>({});
-  const [recurringView, setRecurringView] = useState<"monthly" | "all">("monthly");
 
   const load = useCallback(async () => {
     if (!session?.access_token) return;
@@ -509,50 +508,6 @@ export default function CreditCards() {
               ))}
             </div>
 
-            <div className="rounded-xl border border-outline-variant/10 p-4 bg-surface-container-low/40">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold">Recurring tracker</h3>
-                <div className="flex rounded-full bg-surface-container p-1 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setRecurringView("monthly")}
-                    className={`px-2 py-1 rounded-full ${recurringView === "monthly" ? "bg-surface-container-lowest font-semibold" : "text-on-surface-variant"}`}
-                  >
-                    Monthly
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRecurringView("all")}
-                    className={`px-2 py-1 rounded-full ${recurringView === "all" ? "bg-surface-container-lowest font-semibold" : "text-on-surface-variant"}`}
-                  >
-                    All recurring
-                  </button>
-                </div>
-              </div>
-              {((data?.subscriptions ?? []).length === 0) ? (
-                <p className="text-xs text-on-surface-variant">No recurring transactions detected yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {(data?.subscriptions ?? [])
-                    .filter((s) => recurringView === "all" || (s.frequency ?? "").toLowerCase().includes("month"))
-                    .sort((a, b) => String(a.next_payment_date ?? "").localeCompare(String(b.next_payment_date ?? "")))
-                    .slice(0, 12)
-                    .map((s) => (
-                      <div key={s.id} className="flex items-center justify-between rounded-lg border border-outline-variant/15 bg-surface-container-lowest px-3 py-2">
-                        <div>
-                          <p className="text-sm font-medium text-on-surface">{s.name}</p>
-                          <p className="text-xs text-on-surface-variant">
-                            {s.next_payment_date ? `${s.next_payment_date}` : "Next date unavailable"} · {s.frequency ?? "Recurring"}
-                          </p>
-                        </div>
-                        <p className="text-sm font-semibold text-on-surface">
-                          {s.amount != null ? money(Number(s.amount)) : "—"}
-                        </p>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
           </div>
         )}
       </section>
