@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AiOutputCard, AiOutputEmpty } from "../components/ai/AiOutputCard";
+import { RowActionMenu } from "../components/RowActionMenu";
 import { api } from "../lib/api";
 import type { AiOutputRow, AiOutputsResponse } from "../lib/aiOutputs";
 import { useAuth } from "../contexts/AuthContext";
@@ -108,6 +109,7 @@ export default function Activity({
   const [recurringBusyTx, setRecurringBusyTx] = useState<string | null>(null);
   const [recurringMarked, setRecurringMarked] = useState<Record<string, "yes" | "no">>({});
   const [editingMerchantTx, setEditingMerchantTx] = useState<Tx | null>(null);
+  const [viewingMerchantTx, setViewingMerchantTx] = useState<Tx | null>(null);
   const [merchantFixName, setMerchantFixName] = useState("");
   const [merchantFixCategory, setMerchantFixCategory] = useState("");
   const [merchantFixBusy, setMerchantFixBusy] = useState(false);
@@ -472,9 +474,7 @@ export default function Activity({
             ? {
                 ...t,
                 merchant_name: canonical,
-                category: overrideCat
-                  ? [overrideCat]
-                  : (editingMerchantTx.category?.length ? editingMerchantTx.category : ["Uncategorized"]),
+                category: overrideCat ? [overrideCat] : editingMerchantTx.category?.length ? editingMerchantTx.category : ["Uncategorized"],
               }
             : t
         )
@@ -482,6 +482,7 @@ export default function Activity({
       setEditingMerchantTx(null);
       setMerchantFixName("");
       setMerchantFixCategory("");
+      await load();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Failed to save merchant fix");
     } finally {
@@ -910,15 +911,23 @@ export default function Activity({
                             <span className="font-body font-medium text-on-surface truncate min-w-0 flex-1">
                               {cleanDisplayMerchant(t.merchant_name)}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => openMerchantFix(t)}
-                              title="Correct merchant and category"
-                              aria-label="Correct merchant and category"
-                              className="shrink-0 rounded-full p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-primary transition-colors"
-                            >
-                              <span className="material-symbols-outlined text-[18px] leading-none">edit</span>
-                            </button>
+                            <RowActionMenu
+                              label="Merchant actions"
+                              items={[
+                                {
+                                  id: "view",
+                                  label: "View merchant",
+                                  icon: "visibility",
+                                  onClick: () => setViewingMerchantTx(t),
+                                },
+                                {
+                                  id: "edit",
+                                  label: "Edit merchant details",
+                                  icon: "edit",
+                                  onClick: () => openMerchantFix(t),
+                                },
+                              ]}
+                            />
                           </div>
                         </td>
                         <td className="px-6 py-5 font-body text-sm text-on-surface-variant">
@@ -1042,6 +1051,36 @@ export default function Activity({
                 className="rounded-lg bg-primary text-on-primary px-4 py-2 text-sm font-medium disabled:opacity-60"
               >
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {viewingMerchantTx ? (
+        <div
+          role="presentation"
+          className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4"
+          onClick={() => setViewingMerchantTx(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-xl bg-surface-container-lowest border border-outline-variant/20 p-4 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="font-headline text-base font-semibold text-on-surface">Merchant details</h4>
+            <div className="mt-3 space-y-2 text-sm">
+              <p className="text-on-surface"><span className="text-on-surface-variant">Display:</span> {cleanDisplayMerchant(viewingMerchantTx.merchant_name)}</p>
+              <p className="text-on-surface"><span className="text-on-surface-variant">Raw:</span> {viewingMerchantTx.raw_merchant_name ?? "—"}</p>
+              <p className="text-on-surface"><span className="text-on-surface-variant">Category:</span> {(viewingMerchantTx.category ?? []).join(" · ") || "—"}</p>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewingMerchantTx(null)}
+                className="text-sm text-on-surface-variant px-3 py-2 rounded-lg hover:bg-surface-container-high/80"
+              >
+                Close
               </button>
             </div>
           </div>

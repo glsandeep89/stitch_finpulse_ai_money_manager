@@ -78,10 +78,16 @@ export async function createUserMerchantOverride(
   body: { merchant_pattern: string; canonical_merchant: string; category_override?: string | null }
 ) {
   const sb = getDb();
+  const normalizedPattern = normalizeText(body.merchant_pattern.trim());
+  if (!normalizedPattern) {
+    throw new Error("merchant_pattern is required and must contain matching text after normalization.");
+  }
+  const canonical = body.canonical_merchant.trim();
+  if (!canonical) throw new Error("canonical_merchant is required.");
   const row = {
     user_id: userId,
-    merchant_pattern: body.merchant_pattern.trim(),
-    canonical_merchant: body.canonical_merchant.trim(),
+    merchant_pattern: normalizedPattern,
+    canonical_merchant: canonical,
     category_override: body.category_override?.trim() || null,
   };
   const { data, error } = await sb
@@ -408,16 +414,21 @@ export async function getSubscriptions(userIds: string[]) {
     });
   }
 
+  const existingByUser = new Map<string, Array<{ id: string; name: string | null; merchant_name: string | null; raw: Record<string, unknown> | null }>>();
+  for (const row of (existing ?? []) as Array<{ user_id: string; id: string; name: string | null; merchant_name: string | null; raw: Record<string, unknown> | null }>) {
+    const arr = existingByUser.get(row.user_id) ?? [];
+    arr.push({ id: row.id, name: row.name, merchant_name: row.merchant_name, raw: row.raw ?? null });
+    existingByUser.set(row.user_id, arr);
+  }
+
   for (const row of inferred) {
-    const { data: existingRow, error: existingErr } = await sb
-      .from("subscriptions")
-      .select("id")
-      .eq("user_id", row.user_id)
-      .eq("name", row.name)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (existingErr) throw existingErr;
+    const dedupeKey = normalizeText(String((row.raw ?? {}).merchant_key ?? row.merchant_name ?? row.name ?? ""));
+    const userRows = existingByUser.get(row.user_id) ?? [];
+    const matches = userRows.filter((x) => {
+      const key = normalizeText(String((x.raw ?? {}).merchant_key ?? x.merchant_name ?? x.name ?? ""));
+      return key && key === dedupeKey;
+    });
+    const existingRow = matches[0] ?? null;
     if (existingRow?.id) {
       const { error: updateErr } = await sb
         .from("subscriptions")
@@ -431,6 +442,13 @@ export async function getSubscriptions(userIds: string[]) {
         })
         .eq("id", existingRow.id);
       if (updateErr) throw updateErr;
+      if (matches.length > 1) {
+        const duplicateIds = matches.slice(1).map((m) => m.id);
+        if (duplicateIds.length > 0) {
+          const { error: delErr } = await sb.from("subscriptions").delete().in("id", duplicateIds);
+          if (delErr) throw delErr;
+        }
+      }
     } else {
       const { error: insertErr } = await sb.from("subscriptions").insert(row);
       if (insertErr) throw insertErr;
@@ -442,7 +460,19 @@ export async function getSubscriptions(userIds: string[]) {
     .select("*")
     .in("user_id", userIds);
   if (refreshedErr) throw refreshedErr;
-  return refreshed ?? [];
+  const deduped = dedupeSubscriptionRows(
+    (refreshed ?? []) as Array<{
+      id: string;
+      updated_at: string | null;
+      name: string | null;
+      merchant_name: string | null;
+      amount: number | null;
+      frequency: string | null;
+      next_payment_date: string | null;
+      raw: unknown;
+    }>
+  );
+  return deduped as typeof refreshed;
 }
 
 export async function getNetWorth(userIds: string[]) {
@@ -899,6 +929,13 @@ async function userMerchantOverrides(userIds: string[]): Promise<MerchantOverrid
   return (data ?? []) as MerchantOverrideRow[];
 }
 
+function userOverrideMatches(normalizedRaw: string, pattern: string): boolean {
+  if (!pattern) return false;
+  if (normalizedRaw === pattern) return true;
+  if (pattern.length < 4) return false;
+  return normalizedRaw.includes(pattern);
+}
+
 function resolveCanonicalMerchant(
   rawMerchant: string | null | undefined,
   aliases: MerchantAliasRow[],
@@ -908,10 +945,15 @@ function resolveCanonicalMerchant(
   const { cleanedMerchant, walletRail } = extractWalletRail(raw);
   const normalizedRaw = normalizeText(cleanedMerchant);
 
-  for (const row of overrides) {
+  const sortedOverrides = [...overrides].sort((a, b) => {
+    const la = normalizeText(a.merchant_pattern).length;
+    const lb = normalizeText(b.merchant_pattern).length;
+    return lb - la;
+  });
+  for (const row of sortedOverrides) {
     const pattern = normalizeText(row.merchant_pattern);
     if (!pattern) continue;
-    if (normalizedRaw.includes(pattern)) {
+    if (userOverrideMatches(normalizedRaw, pattern)) {
       return {
         canonical: row.canonical_merchant.trim() || canonicalMerchantName(raw),
         confidence: 1,
@@ -970,6 +1012,31 @@ async function userMerchantCategoryOverrides(userIds: string[]): Promise<Map<str
     if (k) out.set(k, m.budget_category.trim());
   }
   return out;
+}
+
+function subDedupeKey(row: { name?: string | null; merchant_name?: string | null; raw?: unknown }): string {
+  const raw = (row.raw ?? {}) as Record<string, unknown>;
+  return normalizeText(String(raw.merchant_key ?? row.merchant_name ?? row.name ?? ""));
+}
+
+function dedupeSubscriptionRows<
+  T extends { id?: string; updated_at?: string | null; name?: string | null; merchant_name?: string | null; raw?: unknown }
+>(rows: T[]): T[] {
+  const bestByKey = new Map<string, T>();
+  for (const row of rows) {
+    const key = subDedupeKey(row);
+    if (!key) continue;
+    const prev = bestByKey.get(key);
+    if (!prev) {
+      bestByKey.set(key, row);
+      continue;
+    }
+    const prevTs = Date.parse(String(prev.updated_at ?? ""));
+    const currTs = Date.parse(String(row.updated_at ?? ""));
+    const keepCurrent = (Number.isFinite(currTs) ? currTs : 0) >= (Number.isFinite(prevTs) ? prevTs : 0);
+    if (keepCurrent) bestByKey.set(key, row);
+  }
+  return [...bestByKey.values()];
 }
 
 export function categoryKeyForRecommendation(merchant: string, category?: string): string {
@@ -1485,6 +1552,44 @@ export async function setRecurringPreference(
       },
     });
     if (insErr) throw insErr;
+  }
+  return { ok: true };
+}
+
+export async function setRecurringMerchantPreference(
+  userId: string,
+  body: { merchant_key: string; isRecurring: boolean }
+) {
+  const sb = getDb();
+  const merchantKey = normalizeText(body.merchant_key);
+  if (!merchantKey) throw new Error("merchant_key is required.");
+
+  const { data: existingRows, error: readErr } = await sb
+    .from("subscriptions")
+    .select("id, name, merchant_name, raw")
+    .eq("user_id", userId);
+  if (readErr) throw readErr;
+  const matches = (existingRows ?? []).filter((row) => {
+    const key = normalizeText(String(((row.raw ?? {}) as Record<string, unknown>).merchant_key ?? row.merchant_name ?? row.name ?? ""));
+    return key === merchantKey;
+  });
+  if (matches.length === 0) throw new Error("Recurring merchant not found.");
+
+  for (const row of matches) {
+    const currentRaw = (row.raw ?? {}) as Record<string, unknown>;
+    const { error: updErr } = await sb
+      .from("subscriptions")
+      .update({
+        raw: {
+          ...currentRaw,
+          merchant_key: merchantKey,
+          force_recurring: body.isRecurring,
+          override_source: "user",
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+    if (updErr) throw updErr;
   }
   return { ok: true };
 }

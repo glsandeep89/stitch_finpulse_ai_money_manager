@@ -30,6 +30,7 @@ import {
   listRefundTracker,
   setRefundEventStatus,
   setRecurringPreference,
+  setRecurringMerchantPreference,
   listCreditCardRewardsProfiles,
   getBestCardRecommendation,
   getAnnualFeeRoi,
@@ -531,6 +532,21 @@ dataRouter.post("/subscriptions/recurring-preference", async (req, res) => {
       })
       .parse(req.body ?? {});
     const out = await setRecurringPreference(req.userId!, body);
+    res.json(out);
+  } catch (e: unknown) {
+    res.status(400).json({ error: (e as Error).message });
+  }
+});
+
+dataRouter.post("/subscriptions/merchant-recurring-preference", async (req, res) => {
+  try {
+    const body = z
+      .object({
+        merchant_key: z.string().min(1),
+        isRecurring: z.boolean(),
+      })
+      .parse(req.body ?? {});
+    const out = await setRecurringMerchantPreference(req.userId!, body);
     res.json(out);
   } catch (e: unknown) {
     res.status(400).json({ error: (e as Error).message });
