@@ -69,6 +69,36 @@ export async function deleteCategoryMapping(userId: string, id: string) {
   if (error) throw error;
 }
 
+export async function listUserMerchantOverrides(userIds: string[]) {
+  return userMerchantOverrides(userIds);
+}
+
+export async function createUserMerchantOverride(
+  userId: string,
+  body: { merchant_pattern: string; canonical_merchant: string; category_override?: string | null }
+) {
+  const sb = getDb();
+  const row = {
+    user_id: userId,
+    merchant_pattern: body.merchant_pattern.trim(),
+    canonical_merchant: body.canonical_merchant.trim(),
+    category_override: body.category_override?.trim() || null,
+  };
+  const { data, error } = await sb
+    .from("user_merchant_overrides")
+    .upsert(row, { onConflict: "user_id,merchant_pattern" })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteUserMerchantOverride(userId: string, id: string) {
+  const sb = getDb();
+  const { error } = await sb.from("user_merchant_overrides").delete().eq("id", id).eq("user_id", userId);
+  if (error) throw error;
+}
+
 export async function listTransactions(
   userIds: string[],
   opts: {
@@ -104,15 +134,22 @@ export async function listTransactions(
 
   const { data, error } = await q;
   if (error) throw error;
-  const overrides = await userMerchantCategoryOverrides(userIds);
+  const categoryOverrides = await userMerchantCategoryOverrides(userIds);
+  const merchantOverrides = await userMerchantOverrides(userIds);
+  const merchantAliases = await merchantAliasesCatalog();
   let rows = (data ?? []).map((row) => {
-    const merchant = canonicalMerchantName((row as { merchant_name?: string | null }).merchant_name);
+    const rawMerchant = (row as { merchant_name?: string | null }).merchant_name ?? null;
+    const merchantResolution = resolveCanonicalMerchant(rawMerchant, merchantAliases, merchantOverrides);
+    const merchant = merchantResolution.canonical;
     let resolvedCategory: string | null = null;
-    for (const [pattern, category] of overrides.entries()) {
+    for (const [pattern, category] of categoryOverrides.entries()) {
       if (pattern && normalizeText(merchant).includes(pattern)) {
         resolvedCategory = category;
         break;
       }
+    }
+    if (!resolvedCategory && merchantResolution.categoryOverride) {
+      resolvedCategory = merchantResolution.categoryOverride;
     }
     if (!resolvedCategory) {
       const firstNative = ((row as { category?: string[] | null }).category ?? [])[0] ?? null;
@@ -128,6 +165,8 @@ export async function listTransactions(
       ...row,
       merchant_name: merchant,
       category: [resolvedCategory],
+      merchant_resolution_confidence: merchantResolution.confidence,
+      merchant_resolution_source: merchantResolution.source,
     };
   });
   if (opts.category) {
@@ -724,6 +763,7 @@ function toTitleCase(input: string): string {
 }
 
 const MERCHANT_CLEAN_RULES: Array<{ pattern: RegExp; replacement: string }> = [
+  { pattern: /\bcursor\b.*(ai\s*powered)?/i, replacement: "Cursor" },
   { pattern: /sampay\*?\s*doordash|doordash|door dash/i, replacement: "DoorDash" },
   { pattern: /sampay\*?\s*foodistaan|foodistaan/i, replacement: "Foodistaan" },
   { pattern: /signature\s*pest/i, replacement: "Signature Pest Management" },
@@ -743,6 +783,27 @@ const MERCHANT_CLEAN_RULES: Array<{ pattern: RegExp; replacement: string }> = [
   { pattern: /\bwalmart\b/i, replacement: "Walmart" },
   { pattern: /\btarget\b/i, replacement: "Target" },
 ];
+
+type MerchantAliasRow = {
+  merchant_pattern: string;
+  match_type: "exact" | "regex";
+  canonical_merchant: string;
+  default_category: string | null;
+  priority: number | null;
+};
+
+type MerchantOverrideRow = {
+  merchant_pattern: string;
+  canonical_merchant: string;
+  category_override: string | null;
+};
+
+type MerchantResolution = {
+  canonical: string;
+  confidence: number;
+  source: "user_override" | "alias_exact" | "alias_regex" | "clean_rule" | "fallback";
+  categoryOverride: string | null;
+};
 
 function canonicalMerchantName(raw: string | null | undefined): string {
   const source = String(raw ?? "").trim();
@@ -782,6 +843,96 @@ function systemCategoryFromMerchant(merchant: string): string {
   if (/(interest)/.test(m)) return "Interest";
   if (/(rent|mortgage)/.test(m)) return "Housing";
   return "Uncategorized";
+}
+
+async function merchantAliasesCatalog(): Promise<MerchantAliasRow[]> {
+  const sb = getDb();
+  const { data, error } = await sb
+    .from("merchant_aliases")
+    .select("merchant_pattern,match_type,canonical_merchant,default_category,priority")
+    .eq("active", true)
+    .order("priority", { ascending: true });
+  if (error) {
+    const msg = String((error as { message?: string }).message ?? "");
+    if (msg.includes("Could not find the table")) return [];
+    throw error;
+  }
+  return (data ?? []) as MerchantAliasRow[];
+}
+
+async function userMerchantOverrides(userIds: string[]): Promise<MerchantOverrideRow[]> {
+  if (userIds.length === 0) return [];
+  const sb = getDb();
+  const { data, error } = await sb
+    .from("user_merchant_overrides")
+    .select("merchant_pattern,canonical_merchant,category_override")
+    .in("user_id", userIds)
+    .order("created_at", { ascending: false });
+  if (error) {
+    const msg = String((error as { message?: string }).message ?? "");
+    if (msg.includes("Could not find the table")) return [];
+    throw error;
+  }
+  return (data ?? []) as MerchantOverrideRow[];
+}
+
+function resolveCanonicalMerchant(
+  rawMerchant: string | null | undefined,
+  aliases: MerchantAliasRow[],
+  overrides: MerchantOverrideRow[]
+): MerchantResolution {
+  const raw = String(rawMerchant ?? "");
+  const normalizedRaw = normalizeText(raw);
+
+  for (const row of overrides) {
+    const pattern = normalizeText(row.merchant_pattern);
+    if (!pattern) continue;
+    if (normalizedRaw.includes(pattern)) {
+      return {
+        canonical: row.canonical_merchant.trim() || canonicalMerchantName(raw),
+        confidence: 1,
+        source: "user_override",
+        categoryOverride: row.category_override ?? null,
+      };
+    }
+  }
+
+  for (const row of aliases) {
+    const pattern = normalizeText(row.merchant_pattern);
+    if (!pattern || row.match_type !== "exact") continue;
+    if (normalizedRaw === pattern || normalizedRaw.includes(pattern)) {
+      return {
+        canonical: row.canonical_merchant.trim() || canonicalMerchantName(raw),
+        confidence: 0.96,
+        source: "alias_exact",
+        categoryOverride: row.default_category ?? null,
+      };
+    }
+  }
+
+  for (const row of aliases) {
+    if (row.match_type !== "regex") continue;
+    try {
+      const re = new RegExp(row.merchant_pattern, "i");
+      if (!re.test(raw)) continue;
+      return {
+        canonical: row.canonical_merchant.trim() || canonicalMerchantName(raw),
+        confidence: 0.9,
+        source: "alias_regex",
+        categoryOverride: row.default_category ?? null,
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  const cleaned = canonicalMerchantName(raw);
+  for (const rule of MERCHANT_CLEAN_RULES) {
+    if (rule.pattern.test(raw)) {
+      return { canonical: cleaned, confidence: 0.82, source: "clean_rule", categoryOverride: null };
+    }
+  }
+  return { canonical: cleaned, confidence: 0.62, source: "fallback", categoryOverride: null };
 }
 
 async function userMerchantCategoryOverrides(userIds: string[]): Promise<Map<string, string>> {

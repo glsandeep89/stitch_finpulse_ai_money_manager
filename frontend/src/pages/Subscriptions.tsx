@@ -18,6 +18,7 @@ type Sub = {
 type RecurringTab = "monthly" | "all";
 
 const LOGO_DOMAIN_BY_MERCHANT: Record<string, string> = {
+  cursor: "cursor.com",
   google: "google.com",
   disney: "disneyplus.com",
   "disney plus": "disneyplus.com",
