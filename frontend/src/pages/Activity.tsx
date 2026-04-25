@@ -107,7 +107,7 @@ export default function Activity({
   const [groupView, setGroupView] = useState<"category" | "merchant">("category");
   const [flowView, setFlowView] = useState<"expense" | "income">("expense");
   const [recurringBusyTx, setRecurringBusyTx] = useState<string | null>(null);
-  const [recurringMarked, setRecurringMarked] = useState<Record<string, boolean>>({});
+  const [recurringMarked, setRecurringMarked] = useState<Record<string, "yes" | "no">>({});
 
   const filtersRef = useRef({
     dateFrom,
@@ -347,6 +347,48 @@ export default function Activity({
     };
   }, [filteredTxs, groupView, flowView]);
 
+  const uncertainRecurringByTx = useMemo(() => {
+    const byMerchant = new Map<string, Tx[]>();
+    for (const t of filteredTxs) {
+      const key = (t.merchant_name ?? "").trim().toLowerCase();
+      if (!key) continue;
+      if (Number(t.amount) <= 0) continue;
+      const arr = byMerchant.get(key) ?? [];
+      arr.push(t);
+      byMerchant.set(key, arr);
+    }
+
+    const out = new Map<string, string>();
+    for (const txsForMerchant of byMerchant.values()) {
+      if (txsForMerchant.length < 2 || txsForMerchant.length > 4) continue;
+      const ordered = [...txsForMerchant].sort((a, b) => a.trans_date.localeCompare(b.trans_date));
+      const gaps: number[] = [];
+      for (let i = 1; i < ordered.length; i++) {
+        const prev = new Date(`${ordered[i - 1]!.trans_date}T00:00:00.000Z`).getTime();
+        const curr = new Date(`${ordered[i]!.trans_date}T00:00:00.000Z`).getTime();
+        if (Number.isFinite(prev) && Number.isFinite(curr)) {
+          gaps.push(Math.round((curr - prev) / 86400000));
+        }
+      }
+      if (gaps.length === 0) continue;
+      const meanGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+      const spread = Math.max(...gaps) - Math.min(...gaps);
+      const amounts = ordered.map((t) => Math.abs(Number(t.amount))).filter((n) => Number.isFinite(n) && n > 0);
+      const avg = amounts.reduce((s, n) => s + n, 0) / Math.max(1, amounts.length);
+      const maxDev = Math.max(...amounts.map((n) => Math.abs(n - avg)));
+      const amountVarianceRatio = avg > 0 ? maxDev / avg : 0;
+      const unsure =
+        (meanGap >= 14 && meanGap <= 45 && spread > 9) ||
+        (meanGap >= 14 && meanGap <= 45 && amountVarianceRatio > 0.4) ||
+        txsForMerchant.length === 2;
+      if (!unsure) continue;
+      for (const t of txsForMerchant) {
+        out.set(t.plaid_transaction_id, "This merchant looks recurring but confidence is low.");
+      }
+    }
+    return out;
+  }, [filteredTxs]);
+
   const setRecurringPreference = async (tx: Tx, isRecurring: boolean) => {
     if (!session?.access_token) return;
     setErr(null);
@@ -357,7 +399,7 @@ export default function Activity({
         accessToken: session.access_token,
         body: JSON.stringify({ plaid_transaction_id: tx.plaid_transaction_id, isRecurring }),
       });
-      setRecurringMarked((prev) => ({ ...prev, [tx.plaid_transaction_id]: isRecurring }));
+      setRecurringMarked((prev) => ({ ...prev, [tx.plaid_transaction_id]: isRecurring ? "yes" : "no" }));
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Failed to update recurring preference");
     } finally {
@@ -803,21 +845,33 @@ export default function Activity({
                           }`}
                         >
                           {t.amount.toLocaleString(undefined, { style: "currency", currency: "USD" })}
-                        <div className="mt-1">
-                          <button
-                            type="button"
-                            disabled={recurringBusyTx === t.plaid_transaction_id}
-                            onClick={() =>
-                              void setRecurringPreference(
-                                t,
-                                !(recurringMarked[t.plaid_transaction_id] ?? false)
-                              )
-                            }
-                            className="text-[11px] text-primary hover:underline disabled:opacity-50"
-                          >
-                            {recurringMarked[t.plaid_transaction_id] ? "Recurring ✓" : "Mark recurring"}
-                          </button>
-                        </div>
+                        {uncertainRecurringByTx.has(t.plaid_transaction_id) ? (
+                          <div className="mt-1">
+                            <p className="text-[10px] text-on-surface-variant mb-0.5">
+                              {uncertainRecurringByTx.get(t.plaid_transaction_id)}
+                            </p>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                disabled={recurringBusyTx === t.plaid_transaction_id}
+                                onClick={() => void setRecurringPreference(t, true)}
+                                className={`text-[11px] hover:underline disabled:opacity-50 ${recurringMarked[t.plaid_transaction_id] === "yes" ? "text-primary font-semibold" : "text-primary"}`}
+                              >
+                                Mark recurring
+                              </button>
+                              <button
+                                type="button"
+                                disabled={recurringBusyTx === t.plaid_transaction_id}
+                                onClick={() => void setRecurringPreference(t, false)}
+                                className={`text-[11px] hover:underline disabled:opacity-50 ${recurringMarked[t.plaid_transaction_id] === "no" ? "text-primary font-semibold" : "text-on-surface-variant"}`}
+                              >
+                                Not recurring
+                              </button>
+                            </div>
+                          </div>
+                        ) : recurringMarked[t.plaid_transaction_id] === "yes" ? (
+                          <div className="mt-1 text-[11px] text-primary">Recurring ✓</div>
+                        ) : null}
                         </td>
                       </tr>
                     ))
