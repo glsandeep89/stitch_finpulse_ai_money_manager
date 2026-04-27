@@ -57,7 +57,7 @@ export function RowActionMenu({
         <div
           id={menuId}
           role="menu"
-          className="absolute right-0 top-9 z-30 min-w-[220px] rounded-xl border border-outline-variant/20 bg-surface-container-lowest shadow-lg py-1"
+          className="absolute right-0 top-9 z-30 min-w-[230px] rounded-xl border border-outline-variant/20 bg-surface-container-lowest shadow-lg py-1"
         >
           {items.map((item) => {
             const danger = item.variant === "danger";

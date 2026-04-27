@@ -4,7 +4,10 @@ export default function Transactions() {
   return (
     <Activity
       title="Transactions"
-      subtitle="Explore all transactions with cleaner merchants, categories, and grouped spend analytics."
+      subtitle="Monitor your transaction history with cleaner merchant labels and quick filters."
+      compactTableView
+      hideAnomalyCard
+      hideAssistantTools
     />
   );
 }
