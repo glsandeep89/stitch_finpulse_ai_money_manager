@@ -23,6 +23,7 @@ type Account = { plaid_account_id: string; name: string; type?: string; subtype?
 type ActivityProps = {
   title?: string;
   subtitle?: string;
+  compactTableView?: boolean;
   defaultCreditOnly?: boolean;
   defaultInvestmentScope?: boolean;
   hideAnomalyCard?: boolean;
@@ -67,6 +68,7 @@ function exportLedgerCsv(txs: Tx[], accountMap: Record<string, string>) {
 export default function Activity({
   title = "Transactions",
   subtitle = "Monitor and refine your financial flows.",
+  compactTableView = false,
   defaultCreditOnly = false,
   defaultInvestmentScope = false,
   hideAnomalyCard = false,
@@ -106,6 +108,8 @@ export default function Activity({
   const [anomalyRow, setAnomalyRow] = useState<AiOutputRow | null>(null);
   const [groupView, setGroupView] = useState<"category" | "merchant">("category");
   const [flowView, setFlowView] = useState<"expense" | "income">("expense");
+  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "pending">("all");
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [recurringBusyTx, setRecurringBusyTx] = useState<string | null>(null);
   const [recurringMarked, setRecurringMarked] = useState<Record<string, "yes" | "no">>({});
   const [editingMerchantTx, setEditingMerchantTx] = useState<Tx | null>(null);
@@ -365,6 +369,15 @@ export default function Activity({
     };
   }, [filteredTxs, groupView, flowView]);
 
+  const compactRows = useMemo(() => {
+    return filteredTxs.filter((t) => {
+      if (statusFilter === "all") return true;
+      const pending = uncertainRecurringByTx.has(t.plaid_transaction_id);
+      if (statusFilter === "pending") return pending;
+      return !pending;
+    });
+  }, [filteredTxs, statusFilter, uncertainRecurringByTx]);
+
   const uncertainRecurringByTx = useMemo(() => {
     const byMerchant = new Map<string, Tx[]>();
     for (const t of filteredTxs) {
@@ -556,6 +569,194 @@ export default function Activity({
   const selectAllAccounts = () => {
     setSelectedAccountIds(new Set(visibleAccounts.map((a) => a.plaid_account_id)));
   };
+
+  if (compactTableView) {
+    return (
+      <main className="w-full overflow-y-auto">
+        {err ? <p className="text-sm text-error mb-4">{err}</p> : null}
+        <section className="rounded-2xl border border-outline-variant/15 bg-surface-container-lowest p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="font-headline text-3xl font-bold text-on-surface tracking-tight">Transactions History</h2>
+              <p className="font-body text-sm text-on-surface-variant mt-1">{subtitle}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => exportLedgerCsv(compactRows, accountMap)}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary text-on-primary px-4 py-2.5 text-sm font-semibold shadow-sm"
+            >
+              <span className="material-symbols-outlined text-[18px]">download</span>
+              Export Data
+            </button>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-xl border border-outline-variant/20 px-3 py-2 text-sm bg-surface-container-lowest"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-xl border border-outline-variant/20 px-3 py-2 text-sm bg-surface-container-lowest"
+            />
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="rounded-xl border border-outline-variant/20 px-3 py-2 text-sm bg-surface-container-lowest"
+            >
+              <option value="">Category</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              value={maxAmount}
+              placeholder="Amount"
+              onChange={(e) => setMaxAmount(e.target.value)}
+              className="w-32 rounded-xl border border-outline-variant/20 px-3 py-2 text-sm bg-surface-container-lowest"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "all" | "completed" | "pending")}
+              className="rounded-xl border border-outline-variant/20 px-3 py-2 text-sm bg-surface-container-lowest"
+            >
+              <option value="all">Status</option>
+              <option value="completed">Completed</option>
+              <option value="pending">Pending</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => setMoreFiltersOpen((v) => !v)}
+              className="rounded-xl border border-outline-variant/20 px-4 py-2 text-sm bg-surface-container-lowest"
+            >
+              More Filters
+            </button>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="rounded-xl bg-secondary-container text-on-secondary-container px-4 py-2 text-sm font-semibold"
+            >
+              Apply
+            </button>
+          </div>
+          {moreFiltersOpen ? (
+            <div className="mt-3 flex flex-wrap gap-3">
+              <input
+                value={merchantFilter}
+                onChange={(e) => setMerchantFilter(e.target.value)}
+                className="rounded-xl border border-outline-variant/20 px-3 py-2 text-sm"
+                placeholder="Merchant"
+              />
+              <input
+                type="number"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                className="w-28 rounded-xl border border-outline-variant/20 px-3 py-2 text-sm"
+                placeholder="Min"
+              />
+              <select
+                value=""
+                onChange={() => {}}
+                className="rounded-xl border border-outline-variant/20 px-3 py-2 text-sm"
+              >
+                <option value="">Accounts ({selectedAccountIds.size}/{visibleAccounts.length})</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = monthBounds();
+                  setDateFrom(d.from);
+                  setDateTo(d.to);
+                  setMerchantFilter("");
+                  setCategoryFilter("");
+                  setMinAmount("");
+                  setMaxAmount("");
+                  setStatusFilter("all");
+                  selectAllAccounts();
+                  setTimeout(() => load(), 0);
+                }}
+                className="rounded-xl border border-outline-variant/20 px-4 py-2 text-sm text-on-surface-variant"
+              >
+                Reset
+              </button>
+            </div>
+          ) : null}
+
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-outline-variant/15 bg-surface">
+            <table className="w-full min-w-[980px] text-left">
+              <thead className="bg-surface-container-low/70 text-xs uppercase tracking-wide text-on-surface-variant">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Date</th>
+                  <th className="px-5 py-3 font-semibold">Description</th>
+                  <th className="px-5 py-3 font-semibold">Category</th>
+                  <th className="px-5 py-3 font-semibold">Status</th>
+                  <th className="px-5 py-3 font-semibold">Label</th>
+                  <th className="px-5 py-3 font-semibold">Account</th>
+                  <th className="px-5 py-3 font-semibold text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant/15">
+                {compactRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-10 text-center text-sm text-on-surface-variant">
+                      No transactions match these filters.
+                    </td>
+                  </tr>
+                ) : (
+                  compactRows.map((t) => {
+                    const pending = uncertainRecurringByTx.has(t.plaid_transaction_id);
+                    return (
+                      <tr key={t.plaid_transaction_id} className="hover:bg-surface-container-low/60">
+                        <td className="px-5 py-4 text-sm text-on-surface-variant">{t.trans_date}</td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <MerchantLogo merchantName={cleanDisplayMerchant(t.merchant_name)} sizeClass="h-8 w-8" />
+                            <span className="text-sm font-medium text-on-surface truncate">{cleanDisplayMerchant(t.merchant_name)}</span>
+                            <RowActionMenu
+                              label="Merchant actions"
+                              items={[
+                                { id: "view", label: "View merchant", icon: "visibility", onClick: () => setViewingMerchantTx(t) },
+                                { id: "edit", label: "Edit merchant details", icon: "edit", onClick: () => openMerchantFix(t) },
+                              ]}
+                            />
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-sm text-on-surface">{(t.category ?? []).join(" · ") || "—"}</td>
+                        <td className="px-5 py-4">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs border ${
+                              pending ? "bg-tertiary-container/40 border-tertiary-container text-on-surface" : "bg-secondary-container/40 border-secondary-container text-on-surface"
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[14px]">{pending ? "schedule" : "check_circle"}</span>
+                            {pending ? "Pending" : "Completed"}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-sm text-on-surface-variant">{labelDisplayByTx[t.plaid_transaction_id] ?? "—"}</td>
+                        <td className="px-5 py-4 text-sm text-on-surface-variant">
+                          {t.plaid_account_id ? accountMap[t.plaid_account_id] ?? "—" : "—"}
+                        </td>
+                        <td className="px-5 py-4 text-right text-sm font-semibold text-on-surface">
+                          {Math.abs(t.amount).toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="w-full overflow-y-auto">
