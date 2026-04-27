@@ -251,9 +251,17 @@ export default function Budget() {
 
       <div className="flex items-end justify-between mb-6 flex-wrap gap-4">
         <div>
-          <h2 className="text-4xl font-headline font-bold text-on-background tracking-tight">Active Budgets</h2>
+          <h2 className="text-4xl font-headline font-bold text-on-background tracking-tight">Budget Planner</h2>
           <p className="text-on-surface-variant mt-2 font-body text-sm">{monthOverviewLabel()}</p>
         </div>
+        <button
+          type="button"
+          onClick={scrollToAdd}
+          className="inline-flex items-center gap-2 rounded-xl bg-primary text-on-primary px-4 py-2.5 text-sm font-semibold shadow-sm"
+        >
+          <span className="material-symbols-outlined text-[18px]">add</span>
+          Set New Goal
+        </button>
       </div>
 
       <nav className="flex flex-wrap gap-2 mb-10 font-body text-sm" aria-label="Jump to budget section">
@@ -366,12 +374,15 @@ export default function Budget() {
                       </div>
                       <h4 className="font-headline font-bold text-on-background text-lg">{b.category}</h4>
                     </div>
-                    <span className="text-sm font-body font-medium text-on-surface-variant">{fmt(cap)}</span>
+                    <span className="text-sm font-body font-medium text-on-surface-variant">{Math.round(pct)}%</span>
                   </div>
                   <div className="space-y-2">
+                    <div className="text-xs text-on-surface-variant">Progress</div>
                     <div className="flex justify-between text-xs font-body">
                       <span className="text-on-background font-medium">{fmt(spent)} spent</span>
-                      <span className={low ? "text-error font-medium" : "text-on-surface-variant"}>{fmt(remaining)} left</span>
+                      <span className={low ? "text-error font-medium" : "text-on-surface-variant"}>
+                        {fmt(spent)} / {fmt(cap)}
+                      </span>
                     </div>
                     <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
                       <div
@@ -379,6 +390,26 @@ export default function Budget() {
                         style={{ width: `${Math.min(100, pct)}%` }}
                       />
                     </div>
+                    {low ? (
+                      <div className="text-[11px] text-secondary-fixed-variant font-medium">Nearing limit!</div>
+                    ) : (
+                      <div className="text-[11px] text-on-surface-variant">{fmt(remaining)} remaining</div>
+                    )}
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={scrollToAdd}
+                      className="rounded-lg border border-outline-variant/20 px-3 py-2 text-sm hover:bg-surface-container"
+                    >
+                      Edit
+                    </button>
+                    <Link
+                      to={`/creditcards?category=${encodeURIComponent(b.category)}`}
+                      className="rounded-lg border border-outline-variant/20 px-3 py-2 text-sm text-center hover:bg-surface-container"
+                    >
+                      View Details
+                    </Link>
                   </div>
                 </div>
               );

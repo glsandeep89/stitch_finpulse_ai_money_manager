@@ -195,8 +195,16 @@ export default function Subscriptions() {
 
   return (
     <div className="space-y-5 pb-8">
-      <div className="flex items-center gap-6">
-        <h1 className="font-headline text-2xl font-semibold text-primary">Recurring</h1>
+      <div className="flex items-center justify-between gap-6 flex-wrap">
+        <h1 className="font-headline text-2xl font-semibold text-primary">Recurring Payments Overview</h1>
+        <div className="inline-flex items-center gap-1 rounded-full border border-outline-variant/20 bg-surface-container-low p-1 text-sm">
+          <button type="button" className="px-4 py-1.5 rounded-full bg-surface text-on-surface font-medium">
+            Just me
+          </button>
+          <button type="button" className="px-4 py-1.5 rounded-full text-on-surface-variant">
+            Household
+          </button>
+        </div>
         <div className="flex items-center gap-4 text-sm">
           <button
             type="button"
@@ -331,76 +339,67 @@ function RecurringTable({
         <h3 className="font-headline text-base font-semibold text-primary">{title}</h3>
         <span className="text-xs text-on-surface-variant">{rows.length} items</span>
       </div>
-      <div className="overflow-x-auto">
+      <div className="p-4 space-y-2">
         {rows.length === 0 ? (
           <p className="p-5 text-sm text-on-surface-variant">No recurring items in this section yet.</p>
         ) : (
-          <table className="w-full min-w-[860px] text-left">
-            <thead className="bg-surface text-xs uppercase tracking-wide text-on-surface-variant">
-              <tr>
-                <th className="px-5 py-3 font-medium">Merchant</th>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Payment Account</th>
-                <th className="px-4 py-3 font-medium">Category</th>
-                <th className="px-4 py-3 font-medium text-right">Amount</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/15">
-              {rows.map((s) => {
-                const displayMerchant = cleanDisplayMerchant(s.merchant_name || s.name);
-                return (
-                  <tr key={s.id} className="hover:bg-surface-container-low/70">
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <MerchantLogo merchantName={displayMerchant} />
-                        <div>
-                          <p className="text-sm font-medium text-primary">{displayMerchant}</p>
-                          <p className="text-xs text-on-surface-variant">{s.frequency ?? "Recurring"}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-on-surface">{dateLabel(s.next_payment_date)}</td>
-                    <td className="px-4 py-3 text-sm text-on-surface">
-                      {s.raw?.payment_account_name || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-on-surface">
-                      {s.raw?.category || "Subscription"}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right font-medium text-primary">
-                      {money(s.amount)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <RowActionMenu
-                        label="Recurring actions"
-                        items={[
-                          {
-                            id: "view",
-                            label: "View merchant",
-                            icon: "visibility",
-                            onClick: () => onViewMerchant(s),
-                          },
-                          {
-                            id: "edit",
-                            label: "Edit merchant details",
-                            icon: "edit",
-                            onClick: () => onEditMerchant(s),
-                          },
-                          {
-                            id: "not-recurring",
-                            label: "Mark merchant as not recurring",
-                            icon: "close",
-                            variant: "danger",
-                            onClick: () => onMarkNotRecurring(s),
-                          },
-                        ]}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          rows.map((s) => {
+            const displayMerchant = cleanDisplayMerchant(s.merchant_name || s.name);
+            return (
+              <div
+                key={s.id}
+                className="rounded-xl border border-outline-variant/15 bg-surface px-4 py-3 flex items-center gap-4"
+              >
+                <div className="min-w-0 flex items-center gap-3 flex-1">
+                  <MerchantLogo merchantName={displayMerchant} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-primary truncate">{displayMerchant}</p>
+                    <p className="text-xs text-on-surface-variant">{s.next_payment_date ? dateLabel(s.next_payment_date) : (s.frequency ?? "Recurring")}</p>
+                  </div>
+                </div>
+                <div className="hidden md:block text-sm text-on-surface-variant w-36 text-right">
+                  {s.next_payment_date ? (() => {
+                    const dt = new Date(`${s.next_payment_date}T00:00:00.000Z`);
+                    const now = new Date();
+                    now.setHours(0, 0, 0, 0);
+                    const diff = Math.round((dt.getTime() - now.getTime()) / 86400000);
+                    return diff >= 0 ? `In ${diff} days` : `${Math.abs(diff)} days ago`;
+                  })() : "—"}
+                </div>
+                <div className="text-right w-28">
+                  <span className="inline-flex items-center rounded-lg bg-secondary-container/40 px-2.5 py-1 text-sm font-semibold text-on-surface">
+                    {money(s.amount)}
+                  </span>
+                </div>
+                <div className="w-10 text-right">
+                  <RowActionMenu
+                    label="Recurring actions"
+                    items={[
+                      {
+                        id: "view",
+                        label: "View merchant",
+                        icon: "visibility",
+                        onClick: () => onViewMerchant(s),
+                      },
+                      {
+                        id: "edit",
+                        label: "Edit merchant details",
+                        icon: "edit",
+                        onClick: () => onEditMerchant(s),
+                      },
+                      {
+                        id: "not-recurring",
+                        label: "Mark merchant as not recurring",
+                        icon: "close",
+                        variant: "danger",
+                        onClick: () => onMarkNotRecurring(s),
+                      },
+                    ]}
+                  />
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     </section>
